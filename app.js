@@ -9,7 +9,8 @@
  * mission/rank progression, target-bank rules, fuel, multiplier state, and
  * table-specific objective feedback. Stage 4.1 preserves the responsive
  * 600x416 reference frame; Stage 4.2 adds procedural bitmap-like artwork,
- * chrome rails, lamp banks, and mission/rank indicators.
+ * chrome rails, lamp banks, and mission/rank indicators. Stage 4.3 adds
+ * CRT/palette polish; Stage 5.1 adds the lazy Web Audio mixer and unlock path.
  */
 (() => {
   'use strict';
@@ -540,6 +541,80 @@
     lastActionAt: 0,
   };
 
+  // Stage 5.1: lazy mixer creation keeps the page silent until a real user
+  // gesture unlocks it, while exposing a stable master/sfx/ui bus for Stage 5.2.
+  const audio = {
+    supported: Boolean(window.AudioContext || window.webkitAudioContext),
+    unlocked: false,
+    state: 'locked',
+    muted: false,
+    volume: 0.24,
+    gainTarget: 0.24,
+    context: null,
+    master: null,
+    buses: { sfx: null, ui: null },
+    error: '',
+  };
+
+  function updateAudioGain() {
+    if (!audio.master || !audio.context) return;
+    const target = input.muted ? 0 : audio.volume;
+    const now = audio.context.currentTime;
+    audio.gainTarget = target;
+    audio.master.gain.cancelScheduledValues(now);
+    audio.master.gain.setTargetAtTime(target, now, 0.025);
+    audio.muted = input.muted;
+  }
+
+  function unlockAudio() {
+    if (!audio.supported) {
+      audio.state = 'unsupported';
+      return false;
+    }
+    try {
+      if (!audio.context) {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        audio.context = new AudioContextCtor();
+        audio.master = audio.context.createGain();
+        audio.master.gain.value = input.muted ? 0 : audio.volume;
+        const compressor = audio.context.createDynamicsCompressor();
+        compressor.threshold.value = -18;
+        compressor.knee.value = 12;
+        compressor.ratio.value = 6;
+        compressor.attack.value = 0.003;
+        compressor.release.value = 0.18;
+        audio.master.connect(compressor);
+        compressor.connect(audio.context.destination);
+        audio.buses.sfx = audio.context.createGain();
+        audio.buses.ui = audio.context.createGain();
+        audio.buses.sfx.gain.value = 1;
+        audio.buses.ui.gain.value = 0.8;
+        audio.buses.sfx.connect(audio.master);
+        audio.buses.ui.connect(audio.master);
+      }
+      const resume = audio.context.resume();
+      if (resume && typeof resume.catch === 'function') resume.catch(() => {});
+      audio.unlocked = true;
+      audio.state = audio.context.state || 'running';
+      updateAudioGain();
+      return true;
+    } catch (error) {
+      audio.error = error && error.message ? error.message : String(error);
+      audio.state = 'error';
+      return false;
+    }
+  }
+
+  function setMuted(muted) {
+    input.muted = Boolean(muted);
+    updateAudioGain();
+    markAction(input.muted ? 'MUTE ON' : 'MUTE OFF');
+  }
+
+  function toggleMute() {
+    setMuted(!input.muted);
+  }
+
   // Stage 2.6: explicit game lifecycle. Stage 2.9 consumes this state for
   // ball drains and the transition to game over.
   const game = {
@@ -990,6 +1065,7 @@
   }
 
   function onKeyDown(event) {
+    unlockAudio();
     const action = keyAction(event.code);
     if (action || ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyP', 'KeyH', 'KeyM', 'Enter'].includes(event.code)) {
       event.preventDefault();
@@ -1015,8 +1091,7 @@
       input.help = !input.help;
       markAction(input.help ? 'HELP ON' : 'HELP OFF');
     } else if (event.code === 'KeyM') {
-      input.muted = !input.muted;
-      markAction(input.muted ? 'MUTE ON' : 'MUTE OFF');
+      toggleMute();
     } else if (event.code === 'Enter') {
       if (game.state === 'gameover') startNewGame();
       else beginGame();
@@ -1049,6 +1124,7 @@
 
   function onPointerDown(event) {
     event.preventDefault();
+    unlockAudio();
     const pos = pointerPosition(event);
     const action = pointerActionAt(pos.x, pos.y);
     if (!action) return;
@@ -2665,6 +2741,8 @@
 
     text('3D PINBALL', p.x + 18, p.y + 24, 14, '#d7dce1');
     text('SPACE CADET', p.x + 18, p.y + 42, 11, '#8da8ba', 'left', 700);
+    text(audio.state === 'locked' ? 'AUDIO LOCKED' : (input.muted ? 'MUTED' : 'SOUND ON'),
+      p.x + p.w - 16, p.y + 42, 7, input.muted ? '#d9a0a8' : '#79c7cb', 'right', 400);
     ctx.fillStyle = '#4c6575';
     ctx.fillRect(p.x + 18, p.y + 55, p.w - 36, 1);
 
@@ -3458,6 +3536,19 @@
     input.nudgeX = 0;
     input.pointerAction = null;
   });
+  document.addEventListener('visibilitychange', () => {
+    if (!audio.context) return;
+    if (document.hidden) {
+      const suspend = audio.context.suspend();
+      if (suspend && typeof suspend.catch === 'function') suspend.catch(() => {});
+      audio.state = 'suspended';
+    } else if (audio.unlocked) {
+      const resume = audio.context.resume();
+      if (resume && typeof resume.catch === 'function') resume.catch(() => {});
+      audio.state = audio.context.state || 'running';
+      updateAudioGain();
+    }
+  });
   canvas.addEventListener('pointerdown', onPointerDown, { passive: false });
   canvas.addEventListener('pointerup', releasePointerAction, { passive: false });
   canvas.addEventListener('pointercancel', releasePointerAction, { passive: false });
@@ -3470,6 +3561,7 @@
     mapped: mappedTable,
   };
   window.spaceCadetInput = input;
+  window.spaceCadetAudio = audio;
   window.spaceCadetGame = game;
   window.spaceCadetBall = ball;
   window.spaceCadetPhysics = ballPhysics;
@@ -3498,6 +3590,7 @@
   window.spaceCadetRules = rules;
   window.spaceCadetMission = mission;
   window.spaceCadetRanks = RANK_NAMES;
+  window.spaceCadetAudioUnlock = unlockAudio;
   if (testMode) {
     window.spaceCadetTest = {
       step(seconds = FIXED_DT) {
