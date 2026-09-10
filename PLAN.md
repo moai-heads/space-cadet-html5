@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 10, 2026
-**Current position:** Stage 6.2 ready
+**Current position:** Stage 6.3 ready
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -52,7 +52,7 @@ stage changes, and record the validating test or commit for completed work.
 ## Stage 6 — Controls and UI polish
 
 - [x] 6.1 Verify keyboard, mouse, touch, and focus-loss behavior on desktop and mobile layouts. Added focus-safe control reset, pointer capture/drag zones, window-level pointer release, modified-shortcut protection, canvas keyboard focus, and touch/keyboard diagnostics. `tests/controls-smoke.html` plus the nine prior smoke tests pass. Commits `c092a96`, `d4491bc`.
-- [ ] 6.2 Finish help, pause, mute, restart, high-score, and accessibility labeling.
+- [x] 6.2 Finish help, pause, mute, restart, high-score, and accessibility labeling. Added the rendered help overlay, Escape/R restart paths, live status region, keyboard shortcut metadata, canvas focus, and accessible instructions. `tests/ui-smoke.html` plus the ten prior smoke tests pass. Commits `d939991`, `6fe7e90`.
 - [ ] 6.3 Add responsive/fullscreen presentation and make control hints match the final bindings.
 
 ## Stage 7 — Testing, polish, and delivery

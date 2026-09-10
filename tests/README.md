@@ -31,3 +31,5 @@ shooter-lane exit routing.
 `mission-sound-smoke.html` covers mission start/progress/completion, promotion, multiplier, and fuel rule cues.
 
 `controls-smoke.html` covers keyboard bindings, touch zones, pointer drag transfer, pointer release outside the canvas, canvas focus, focus-loss resets, and modified-shortcut protection.
+
+`ui-smoke.html` covers help/escape behavior, pause/resume, mute/unmute, restart, live status updates, high-score preservation, and accessibility metadata.
