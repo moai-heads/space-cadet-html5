@@ -7,7 +7,9 @@
  * Stage 3.3 adds mapped ramps, ramp-hole capture, wormhole sinks, rocket
  * launch feedback, and shooter-lane exit routing. Stage 3.4 adds
  * mission/rank progression, target-bank rules, fuel, multiplier state, and
- * table-specific objective feedback.
+ * table-specific objective feedback. Stage 4.1 preserves the responsive
+ * 600x416 reference frame; Stage 4.2 adds procedural bitmap-like artwork,
+ * chrome rails, lamp banks, and mission/rank indicators.
  */
 (() => {
   'use strict';
@@ -2273,6 +2275,180 @@
     ctx.fillText(value, x, y);
   }
 
+  // Stage 4.2: a tiny five-row bitmap alphabet keeps table decals and lamp
+  // labels close to the low-resolution source without importing its artwork.
+  const PIXEL_GLYPHS = Object.freeze({
+    A: ['01110', '10001', '10001', '11111', '10001'],
+    B: ['11110', '10001', '11110', '10001', '11110'],
+    C: ['01111', '10000', '10000', '10000', '01111'],
+    D: ['11110', '10001', '10001', '10001', '11110'],
+    E: ['11111', '10000', '11110', '10000', '11111'],
+    F: ['11111', '10000', '11110', '10000', '10000'],
+    G: ['01111', '10000', '10111', '10001', '01111'],
+    H: ['10001', '10001', '11111', '10001', '10001'],
+    I: ['11111', '00100', '00100', '00100', '11111'],
+    J: ['00111', '00010', '00010', '10010', '01100'],
+    K: ['10001', '10010', '11100', '10010', '10001'],
+    L: ['10000', '10000', '10000', '10000', '11111'],
+    M: ['10001', '11011', '10101', '10001', '10001'],
+    N: ['10001', '11001', '10101', '10011', '10001'],
+    O: ['01110', '10001', '10001', '10001', '01110'],
+    P: ['11110', '10001', '11110', '10000', '10000'],
+    Q: ['01110', '10001', '10101', '10011', '01111'],
+    R: ['11110', '10001', '11110', '10010', '10001'],
+    S: ['01111', '10000', '01110', '00001', '11110'],
+    T: ['11111', '00100', '00100', '00100', '00100'],
+    U: ['10001', '10001', '10001', '10001', '01110'],
+    V: ['10001', '10001', '10001', '01010', '00100'],
+    W: ['10001', '10001', '10101', '11011', '10001'],
+    X: ['10001', '01010', '00100', '01010', '10001'],
+    Y: ['10001', '01010', '00100', '00100', '00100'],
+    Z: ['11111', '00010', '00100', '01000', '11111'],
+    0: ['01110', '10011', '10101', '11001', '01110'],
+    1: ['00100', '01100', '00100', '00100', '01110'],
+    2: ['01110', '10001', '00010', '00100', '11111'],
+    3: ['11110', '00001', '00110', '00001', '11110'],
+    4: ['00010', '00110', '01010', '11111', '00010'],
+    5: ['11111', '10000', '11110', '00001', '11110'],
+    6: ['01110', '10000', '11110', '10001', '01110'],
+    7: ['11111', '00001', '00010', '00100', '00100'],
+    8: ['01110', '10001', '01110', '10001', '01110'],
+    9: ['01110', '10001', '01111', '00001', '01110'],
+    '-': ['00000', '00000', '11111', '00000', '00000'],
+    ':': ['00000', '00100', '00000', '00100', '00000'],
+    '/': ['00001', '00010', '00100', '01000', '10000'],
+    '?': ['01110', '10001', '00010', '00000', '00010'],
+    ' ': ['00000', '00000', '00000', '00000', '00000'],
+  });
+
+  function pixelText(value, x, y, scale, color, align = 'left') {
+    const glyphs = String(value).toUpperCase().split('').map(char => PIXEL_GLYPHS[char] || PIXEL_GLYPHS['?']);
+    const advance = 6 * scale;
+    const totalWidth = Math.max(0, glyphs.length * advance - scale);
+    let startX = x;
+    if (align === 'center') startX -= totalWidth / 2;
+    else if (align === 'right') startX -= totalWidth;
+    ctx.save();
+    ctx.fillStyle = color;
+    for (let index = 0; index < glyphs.length; index += 1) {
+      const glyph = glyphs[index];
+      for (let row = 0; row < glyph.length; row += 1) {
+        for (let column = 0; column < glyph[row].length; column += 1) {
+          if (glyph[row][column] === '1') {
+            ctx.fillRect(startX + index * advance + column * scale, y + row * scale, scale, scale);
+          }
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawLamp(x, y, color, on, radius = 2.2) {
+    const active = Boolean(on);
+    ctx.save();
+    ctx.shadowColor = active ? color : 'transparent';
+    ctx.shadowBlur = active ? radius * 4 : 0;
+    ctx.fillStyle = '#07131c';
+    ctx.beginPath();
+    ctx.arc(x, y, radius + 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    const lamp = ctx.createRadialGradient(x - radius * .35, y - radius * .45, .2, x, y, radius);
+    lamp.addColorStop(0, active ? '#fff9cf' : '#4f6670');
+    lamp.addColorStop(.32, active ? color : '#223943');
+    lamp.addColorStop(1, active ? '#38505b' : '#101d25');
+    ctx.fillStyle = lamp;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = active ? '#e6f3e9' : '#526a73';
+    ctx.lineWidth = .6;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawChromePolyline(points, inner, accent = '#d7e8e7', width = 2) {
+    if (!points.length) return;
+    drawPolyline(points, inner, '#06111a', width + 6, 0);
+    drawPolyline(points, inner, '#244552', width + 3, 0);
+    drawPolyline(points, inner, accent, width, 4);
+    drawPolyline(points, inner, 'rgba(255,255,255,.42)', Math.max(.55, width * .28), 0);
+  }
+
+  function drawClosedChromePolyline(points, inner, accent = '#d7e8e7', width = 2) {
+    drawChromePolyline([...points, points[0]], inner, accent, width);
+  }
+
+  function drawTableSurfaceArt(inner, t) {
+    ctx.save();
+    ctx.globalAlpha = .18;
+    ctx.strokeStyle = '#5ccbd2';
+    ctx.lineWidth = 1;
+    for (let y = 68; y < 390; y += 24) {
+      ctx.beginPath();
+      ctx.moveTo(inner.x + 20, inner.y + y);
+      ctx.quadraticCurveTo(inner.x + 182, inner.y + y - 10, inner.x + 345, inner.y + y + 7);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = .22;
+    ctx.strokeStyle = '#d4ae58';
+    for (let x = 34; x < 350; x += 42) {
+      ctx.beginPath();
+      ctx.moveTo(inner.x + x, inner.y + 64);
+      ctx.lineTo(inner.x + x + 30, inner.y + 386);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = .32;
+    ctx.strokeStyle = '#6ee1e0';
+    ctx.beginPath();
+    ctx.ellipse(inner.x + 183, inner.y + 201, 108, 70, -.12, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(inner.x + 183, inner.y + 201, 74, 48, -.12, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = .55;
+    const pulse = 0.5 + 0.5 * Math.sin(t * .002);
+    drawLamp(inner.x + 183, inner.y + 201, '#e6c75f', pulse > .25, 2.2);
+    ctx.restore();
+  }
+
+  function drawMissionIndicatorGraphics(inner) {
+    const x = inner.x + 12;
+    const y = inner.y + 52;
+    const w = 100;
+    const h = 27;
+    const active = mission.phase === 'active';
+    ctx.save();
+    ctx.fillStyle = 'rgba(3, 12, 21, .88)';
+    ctx.strokeStyle = active ? '#d8bc5d' : '#436b79';
+    ctx.lineWidth = 1;
+    roundedRect(x, y, w, h, 3);
+    ctx.fill();
+    ctx.stroke();
+    pixelText(active ? 'MISSION' : 'TABLE', x + 5, y + 4, 1, active ? '#f0d36b' : '#77aeb7');
+    pixelText(active ? `M-${String(mission.index + 1).padStart(2, '0')}` : 'READY', x + 5, y + 13, 1, '#d8e7e2');
+    const count = active ? mission.required : 3;
+    for (let i = 0; i < count; i += 1) {
+      const lit = active ? i < mission.progress : i < rules.rankProgress;
+      drawLamp(x + 60 + i * 10, y + 19, active ? '#e3c85f' : '#69c8d0', lit, 2);
+    }
+    ctx.restore();
+  }
+
+  function drawTableRuleLamps(inner) {
+    const rows = [
+      { label: 'BOOST', x: 17, y: 105, count: 3, value: rules.boosterProgress, color: '#e6c75f' },
+      { label: 'MEDAL', x: 17, y: 121, count: 3, value: rules.medalProgress, color: '#dd6f84' },
+      { label: 'MULTI', x: 285, y: 105, count: 3, value: rules.multiplierLights, color: '#6fc9d1' },
+      { label: 'FUEL', x: 285, y: 121, count: 6, value: Math.ceil(rules.fuel / 2), color: '#dd9c50' },
+    ];
+    for (const row of rows) {
+      pixelText(row.label, inner.x + row.x, inner.y + row.y - 4, .8, '#83b4bd');
+      for (let i = 0; i < row.count; i += 1) {
+        drawLamp(inner.x + row.x + 31 + i * 8, inner.y + row.y, row.color, i < row.value, 1.8);
+      }
+    }
+  }
+
   function drawBumperGraphic(bumper, inner) {
     const pulse = bumper.flash;
     const radius = bumper.radius + pulse * 3;
@@ -2491,7 +2667,7 @@
       drawMappedPolygon(rollover.points, inner, fill, edge, lit ? 1.6 : 1);
       ctx.restore();
       if (rollover.width > 7 && rollover.height > 5) {
-        text(rollover.label, inner.x + rollover.x, inner.y + rollover.y, 5, lit ? '#142538' : '#8dbbc0', 'center', 800);
+        pixelText(rollover.label, inner.x + rollover.x, inner.y + rollover.y - 2, .65, lit ? '#142538' : '#8dbbc0', 'center');
       }
     }
   }
@@ -2513,7 +2689,8 @@
       ctx.strokeStyle = target.active ? palette.edge : '#48606b';
       ctx.lineWidth = lit ? 1.6 : 1;
       ctx.stroke();
-      if (w >= 7 && h >= 7) text(target.label, 0, 0.3, 5, target.active && lit ? '#15253a' : '#99c7ca', 'center', 800);
+      if (w >= 7 && h >= 7) pixelText(target.label, 0, -2, .65, target.active && lit ? '#15253a' : '#99c7ca', 'center');
+      drawLamp(0, h / 2 + 3, palette.on, lit, 1.3);
       ctx.restore();
     }
   }
@@ -2529,7 +2706,7 @@
       drawMappedPolygon(sling.points, inner, fill, stroke, hot ? 2.5 : 1.5);
       ctx.restore();
       const center = polygonCenter(sling.points);
-      text('S', inner.x + center.x, inner.y + center.y + 1, 7, hot ? '#17263a' : '#f0b3c1', 'center', 900);
+      pixelText('S', inner.x + center.x, inner.y + center.y - 2, 1, hot ? '#17263a' : '#f0b3c1', 'center');
     }
   }
 
@@ -2583,8 +2760,8 @@
       for (const rail of ramp.rails) drawPolyline(rail, inner, hot ? '#fff0a0' : '#bed5d5', hot ? 2.3 : 1.5, hot ? 8 : 2);
       drawPolyline(ramp.path, inner, base, hot ? 2 : 1, hot ? 8 : 0, [3, 4]);
       const mid = polylineSample(ramp.path, 0.52);
-      text(ramp.kind === 'launch' ? 'RAMP' : 'HYPER', inner.x + mid.x, inner.y + mid.y - 7, 6,
-        hot ? '#fff0a5' : '#8bb8be', 'center', 800);
+      pixelText(ramp.kind === 'launch' ? 'RAMP' : 'HYPER', inner.x + mid.x, inner.y + mid.y - 9, .8,
+        hot ? '#fff0a5' : '#8bb8be', 'center');
       const exit = polylineSample(ramp.path, 1);
       ctx.save();
       ctx.fillStyle = hot ? '#fff0a5' : '#d8e5dd';
@@ -2620,7 +2797,7 @@
       ctx.arc(x, y, hole.radius - 4, 0.2, Math.PI * 1.7);
       ctx.stroke();
       ctx.restore();
-      text('RAMP', x, y - hole.radius - 8, 5, hot ? '#ffe89a' : '#9f728e', 'center', 800);
+      pixelText('RAMP', x, y - hole.radius - 10, .75, hot ? '#ffe89a' : '#9f728e', 'center');
     }
   }
 
@@ -2656,7 +2833,7 @@
       ctx.arc(x, y, 3.2 + (hot ? 1.2 : 0), 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-      text(wormhole.label[0], x, y + 1, 5, '#101827', 'center', 900);
+      pixelText(wormhole.label[0], x, y - 2, .9, '#101827', 'center');
     });
   }
 
@@ -2664,7 +2841,7 @@
     const hot = shooterExit.flash > 0 || shooterExit.active;
     drawPolyline(shooterExit.path, inner, hot ? '#ffe98f' : 'rgba(123, 192, 197, .64)', hot ? 2.2 : 1.2, hot ? 8 : 2, [4, 4]);
     const end = shooterExit.path[shooterExit.path.length - 1];
-    text('EXIT', inner.x + end.x, inner.y + end.y - 7, 5, hot ? '#ffe98f' : '#7aaeb7', 'center', 800);
+    pixelText('EXIT', inner.x + end.x, inner.y + end.y - 9, .75, hot ? '#ffe98f' : '#7aaeb7', 'center');
   }
 
   function drawRocketGraphic(inner) {
@@ -2697,7 +2874,7 @@
     ctx.closePath();
     ctx.fill();
     ctx.restore();
-    text('ROCKET', x, y + 17, 5, hot ? '#ffe99a' : '#759aa6', 'center', 800);
+    pixelText('ROCKET', x, y + 17, .75, hot ? '#ffe99a' : '#759aa6', 'center');
   }
 
   function drawTable(t) {
@@ -2745,6 +2922,7 @@
       ctx.fillRect(sx, sy, i % 2 ? 1 : 2, i % 2 ? 1 : 1);
     }
     ctx.globalAlpha = 1;
+    drawTableSurfaceArt(inner, t);
 
     // Projected outer rails from the source table group's [-8, 8] × [-14, 15]
     // rectangle. The lower corners intentionally continue below the viewport.
@@ -2765,6 +2943,13 @@
     ctx.moveTo(tableCorners.topLeft.x + 3, tableCorners.topLeft.y + 2);
     ctx.lineTo(tableCorners.bottomLeft.x + 3, tableCorners.bottomLeft.y - 4);
     ctx.stroke();
+    drawClosedChromePolyline([
+      tableCorners.topLeft,
+      tableCorners.topRight,
+      tableCorners.bottomRight,
+      tableCorners.bottomLeft,
+    ], inner, '#d6e5e3', 1.7);
+    drawChromePolyline(shooterRail, inner, '#d6e5e3', 1.6);
 
     // Header mark and center lane. These are screen-space accents anchored to
     // the same projection center used by the original camera_info record.
@@ -2774,7 +2959,7 @@
     ctx.moveTo(112, 31);
     ctx.quadraticCurveTo(183, 8, 252, 31);
     ctx.stroke();
-    text('SPACE CADET', 183, 28, 13, '#e5ca66', 'center');
+    pixelText('SPACE CADET', 183, 21, 1.55, '#e5ca66', 'center');
     ctx.strokeStyle = 'rgba(115, 218, 225, .72)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -2789,6 +2974,9 @@
     ctx.moveTo(192, 42);
     ctx.lineTo(192, 83);
     ctx.stroke();
+
+    drawMissionIndicatorGraphics(inner);
+    drawTableRuleLamps(inner);
 
     // Stage 3.2: mapped table features are drawn from the same polygons used
     // by the collision system, so lamps and contact geometry cannot drift.
@@ -2819,7 +3007,7 @@
     ctx.moveTo(plungerX + 19, 104);
     ctx.lineTo(plungerX + 19, 350);
     ctx.stroke();
-    text('LAUNCH', plungerX + 14, 93, 7, '#dfc560', 'center');
+    pixelText('LAUNCH', plungerX + 14, 88, .8, '#dfc560', 'center');
 
     const plungerBaseY = plunger.laneBottom + 14;
     const plungerHandleY = plungerBaseY + plunger.charge * 7;
@@ -2864,7 +3052,7 @@
     ctx.strokeStyle = drain.flash > 0 ? '#f2cf63' : '#466b79';
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    text('DRAIN', (drainLeft + drainRight) / 2, drainY + 7, 7, drain.flash > 0 ? '#f2cf63' : '#6f98a6', 'center');
+    pixelText('DRAIN', (drainLeft + drainRight) / 2, drainY + 2, .9, drain.flash > 0 ? '#f2cf63' : '#6f98a6', 'center');
 
     drawFlipperGraphic(flippers.left, inner);
     drawFlipperGraphic(flippers.right, inner);
