@@ -5,6 +5,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 ## Progress
 
 - **Stage 2.9 complete:** open-drain detection, ball decrement, drain flash/banner, service delay, next-ball plunger reset, and final-ball game over.
+- **Stage 2.10 complete:** centralized score events with rail, flipper, and bumper awards plus score popups.
 
 ## Run
 

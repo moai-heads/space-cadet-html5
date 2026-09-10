@@ -1,8 +1,8 @@
 /*
  * 3D Pinball — Space Cadet (HTML5)
- * Stages 2.1–2.9: canvas boot, fixed loop, input, physics, collisions,
- * flippers, game state, plunger lane, and drain/respawn. Later stages add
- * scoring, table rules, and audio.
+ * Stages 2.1–2.10: canvas boot, fixed loop, input, physics, collisions,
+ * flippers, game state, plunger lane, drain/respawn, and scoring hooks. Later
+ * stages add table rules and audio.
  */
 (() => {
   'use strict';
@@ -91,6 +91,14 @@
     game.player = 1;
     drain.cooldown = 0;
     drain.flash = 0;
+    scoring.hits = 0;
+    scoring.totalPoints = 0;
+    scoring.lastPoints = 0;
+    scoring.lastLabel = 'NO SCORE YET';
+    scoring.flash = 0;
+    scoring.combo = 0;
+    scoring.comboTimer = 0;
+    scoring.popups.length = 0;
     setGameState('ready', 'PRESS SPACE OR ENTER');
     armPlunger();
     markAction('NEW GAME');
@@ -281,6 +289,19 @@
     lastReason: '',
   };
 
+  // Stage 2.10: score events are centralized so table objects can award
+  // points without coupling gameplay rules to the renderer.
+  const scoring = {
+    hits: 0,
+    totalPoints: 0,
+    lastPoints: 0,
+    lastLabel: 'NO SCORE YET',
+    flash: 0,
+    combo: 0,
+    comboTimer: 0,
+    popups: [],
+  };
+
   function armPlunger() {
     plunger.armed = true;
     plunger.charge = 0;
@@ -403,6 +424,7 @@
     ball.x += ball.vx * dt;
     ball.y += ball.vy * dt;
     collideBallWithWalls();
+    collideBallWithBumpers();
     collideBallWithFlippers();
     limitBallSpeed();
 
@@ -436,9 +458,17 @@
     { a: { x: 436, y: 170 }, b: { x: 438, y: 652 }, restitution: 0.91 },
     { a: { x: 418, y: 614 }, b: { x: 418, y: 116 }, restitution: 0.88 },
   ];
+
+  const bumpers = [
+    { id: 'red', x: 142, y: 130, radius: 25, restitution: 1.04, kick: 145, points: 100, core: '#db4352', ring: '#f0a840', flash: 0, hitCooldown: 0, hits: 0 },
+    { id: 'gold', x: 234, y: 108, radius: 25, restitution: 1.04, kick: 155, points: 100, core: '#e3be41', ring: '#f3df8d', flash: 0, hitCooldown: 0, hits: 0 },
+    { id: 'blue', x: 326, y: 130, radius: 25, restitution: 1.04, kick: 145, points: 100, core: '#4baed2', ring: '#a3e7ec', flash: 0, hitCooldown: 0, hits: 0 },
+  ];
+
   const collisionState = {
     wallHits: 0,
     flipperHits: 0,
+    bumperHits: 0,
     impacts: [],
   };
 
@@ -450,11 +480,27 @@
     return { x: ax + dx * t, y: ay + dy * t, t };
   }
 
+  function awardScore(points, label, x = ball.x, y = ball.y) {
+    if (game.state !== 'playing') return;
+    const value = Math.max(0, Math.floor(points));
+    addScore(value);
+    scoring.hits += 1;
+    scoring.totalPoints += value;
+    scoring.lastPoints = value;
+    scoring.lastLabel = `${label} +${value}`;
+    scoring.flash = 1;
+    scoring.combo = scoring.comboTimer > 0 ? scoring.combo + 1 : 1;
+    scoring.comboTimer = 1.5;
+    scoring.popups.push({ x, y, points: value, life: 1 });
+    if (scoring.popups.length > 12) scoring.popups.shift();
+    markAction(`${label} +${value}`);
+  }
+
   function recordWallImpact(x, y, nx, ny) {
     collisionState.wallHits += 1;
-    collisionState.impacts.push({ x, y, nx, ny, life: 1 });
+    collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'wall' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
-    markAction('WALL HIT');
+    awardScore(10, 'RAIL', x, y);
   }
 
   function collideBallWithSegment(segment) {
@@ -512,6 +558,53 @@
     return collided;
   }
 
+  function recordBumperImpact(x, y, nx, ny, bumper) {
+    collisionState.bumperHits += 1;
+    bumper.hits += 1;
+    bumper.flash = 1;
+    bumper.hitCooldown = 0.085;
+    collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'bumper' });
+    if (collisionState.impacts.length > 16) collisionState.impacts.shift();
+    awardScore(bumper.points, 'BUMPER', x, y);
+  }
+
+  function collideBallWithBumper(bumper) {
+    const dx = ball.x - bumper.x;
+    const dy = ball.y - bumper.y;
+    const hitRadius = ball.radius + bumper.radius;
+    let distance = Math.hypot(dx, dy);
+    let nx = distance > 0.0001 ? dx / distance : 0;
+    let ny = distance > 0.0001 ? dy / distance : 1;
+    if (distance < 0.0001) distance = 0;
+
+    const penetration = hitRadius - distance;
+    if (penetration <= 0) return false;
+
+    ball.x += nx * (penetration + 0.08);
+    ball.y += ny * (penetration + 0.08);
+    const normalVelocity = ball.vx * nx + ball.vy * ny;
+    const freshHit = bumper.hitCooldown <= 0;
+
+    if (normalVelocity < 0 || freshHit) {
+      if (normalVelocity < 0) {
+        ball.vx -= (1 + bumper.restitution) * normalVelocity * nx;
+        ball.vy -= (1 + bumper.restitution) * normalVelocity * ny;
+      }
+      ball.vx += nx * bumper.kick;
+      ball.vy += ny * bumper.kick;
+      limitBallSpeed();
+      if (freshHit) recordBumperImpact(bumper.x + nx * bumper.radius, bumper.y + ny * bumper.radius, nx, ny, bumper);
+      return true;
+    }
+    return false;
+  }
+
+  function collideBallWithBumpers() {
+    let collided = false;
+    for (const bumper of bumpers) collided = collideBallWithBumper(bumper) || collided;
+    return collided;
+  }
+
   // Stage 2.7: articulated flippers with finite travel, angular velocity,
   // capsule collision, and a small moving-bat impulse.
   const flippers = {
@@ -557,11 +650,11 @@
 
   function recordFlipperImpact(x, y, nx, ny, flipper) {
     collisionState.flipperHits += 1;
-    collisionState.impacts.push({ x, y, nx, ny, life: 1, flipper: flipper.side });
+    collisionState.impacts.push({ x, y, nx, ny, life: 1, flipper: flipper.side, kind: 'flipper' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     flipper.flash = 1;
     flipper.hitCooldown = 0.055;
-    markAction(`${flipper.side.toUpperCase()} FLIP HIT`);
+    awardScore(25, 'FLIPPER', x, y);
   }
 
   function collideBallWithFlipper(flipper) {
@@ -691,6 +784,19 @@
     ctx.fillText(value, x, y);
   }
 
+  function drawBumperGraphic(bumper, inner) {
+    const pulse = bumper.flash;
+    const radius = bumper.radius + pulse * 3;
+    glowCircle(inner.x + bumper.x, inner.y + bumper.y, radius, bumper.core, bumper.ring);
+    ctx.save();
+    ctx.strokeStyle = pulse > 0 ? '#fff4a8' : 'rgba(226,246,239,.72)';
+    ctx.lineWidth = pulse > 0 ? 3 : 1.5;
+    ctx.beginPath();
+    ctx.arc(inner.x + bumper.x, inner.y + bumper.y, radius + 8 + pulse * 3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function glowCircle(x, y, r, core, ring) {
     ctx.save();
     ctx.shadowColor = core;
@@ -768,6 +874,7 @@
     text(game.state.toUpperCase(), p.x + p.w - 28, p.y + 302, 12, game.state === 'playing' ? '#8fe7f0' : '#f2cd70', 'right');
     text('MISSION STATUS', p.x + 30, p.y + 344, 13, '#75a7c4');
     text(game.lastMessage, p.x + 30, p.y + 369, 12, '#f2cd5b');
+    text(`LAST ${scoring.lastLabel}`, p.x + 30, p.y + 392, 10, scoring.flash > 0 ? '#f6d873' : '#628da2', 'left', 400);
 
     const lights = ['READY', 'LIGHT', 'RAMP', 'WORM'];
     lights.forEach((label, i) => {
@@ -800,7 +907,7 @@
     ctx.arc(p.x + 32, p.y + 665, 3, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    text('STAGE 2.9  /  DRAIN + RESPAWN', p.x + 43, p.y + 630, 11, '#6699b2', 'left', 400);
+    text('STAGE 2.10 /  SCORING HOOKS', p.x + 43, p.y + 630, 11, '#6699b2', 'left', 400);
     const nextBall = drain.cooldown > 0 ? `${drain.cooldown.toFixed(1)}s` : (plunger.armed ? 'READY' : 'IN PLAY');
     text(`DRAIN ${String(drain.total).padStart(2, '0')}  NEXT ${nextBall}`,
       p.x + 30, p.y + 647, 9, '#5b8ca3', 'left', 400);
@@ -906,9 +1013,7 @@
     });
 
     // Bumper cluster.
-    glowCircle(inner.x + 142, inner.y + 130, 25, '#db4352', '#f0a840');
-    glowCircle(inner.x + 234, inner.y + 108, 25, '#e3be41', '#f3df8d');
-    glowCircle(inner.x + 326, inner.y + 130, 25, '#4baed2', '#a3e7ec');
+    for (const bumper of bumpers) drawBumperGraphic(bumper, inner);
     ctx.strokeStyle = 'rgba(255,245,182,.72)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -1042,6 +1147,14 @@
       ctx.restore();
     }
 
+    // Score popups are intentionally small, like the original bitmap callouts.
+    for (const popup of scoring.popups) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, popup.life);
+      text(`+${popup.points}`, inner.x + popup.x, inner.y + popup.y, 12, '#ffe88c', 'center');
+      ctx.restore();
+    }
+
     // Dynamic ball + short motion trail (physics-stage diagnostic).
     const ballX = inner.x + ball.x;
     const ballY = inner.y + ball.y;
@@ -1072,7 +1185,25 @@
     ctx.lineWidth = 3;
     roundedRect(inner.x, inner.y, inner.w, inner.h, 4);
     ctx.stroke();
-    text('TEST TABLE / REFERENCE PASS', bx + bw / 2, by + bh - 8, 11, '#8dbbc7', 'center', 400);
+    text('SCORING HOOKS / REFERENCE PASS', bx + bw / 2, by + bh - 8, 11, '#8dbbc7', 'center', 400);
+  }
+
+  function updateScoring(dt) {
+    scoring.flash = Math.max(0, scoring.flash - dt * 3.8);
+    scoring.comboTimer = Math.max(0, scoring.comboTimer - dt);
+    if (scoring.comboTimer === 0) scoring.combo = 0;
+    for (const popup of scoring.popups) {
+      popup.life -= dt * 1.7;
+      popup.y -= dt * 24;
+    }
+    scoring.popups = scoring.popups.filter(popup => popup.life > 0);
+  }
+
+  function updateBumpers(dt) {
+    for (const bumper of bumpers) {
+      bumper.flash = Math.max(0, bumper.flash - dt * 5.5);
+      bumper.hitCooldown = Math.max(0, bumper.hitCooldown - dt);
+    }
   }
 
   function drawDrainStatus() {
@@ -1146,6 +1277,8 @@
     if (game.state !== 'paused') game.stateTime += dt;
     updatePlunger(dt);
     updateDrain(dt);
+    updateScoring(dt);
+    updateBumpers(dt);
     updateFlipper(flippers.left, input.left, dt);
     updateFlipper(flippers.right, input.right, dt);
     simulateBall(dt);
@@ -1197,6 +1330,8 @@
   window.spaceCadetFlippers = flippers;
   window.spaceCadetPlunger = plunger;
   window.spaceCadetDrain = drain;
+  window.spaceCadetBumpers = bumpers;
+  window.spaceCadetScoring = scoring;
 
   fitCanvas();
   requestAnimationFrame(frame);
