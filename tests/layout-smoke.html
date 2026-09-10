@@ -12,8 +12,7 @@
   </style>
 </head>
 <body>
-  <iframe id="wide" title="wide layout" width="1200" height="832" src="../index.html"></iframe>
-  <iframe id="mobile" title="mobile layout" width="390" height="844" src="../index.html"></iframe>
+  <iframe id="viewport" title="responsive layout" width="1200" height="832" src="../index.html"></iframe>
   <pre id="result">RUNNING…</pre>
   <script>
     (() => {
@@ -21,30 +20,32 @@
       const results = [];
       const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
       const ratio = (width, height) => Math.abs(width / height - 600 / 416);
-      const readFrame = (id, expectedWidth) => {
-        const frame = document.getElementById(id);
+      const readFrame = (label, expectedWidth, frame) => {
         const doc = frame.contentDocument;
         const canvas = doc.getElementById('game');
         const screen = doc.getElementById('screen');
         const rect = canvas.getBoundingClientRect();
-        const screenRect = screen.getBoundingClientRect();
-        check(`${id} keeps the 600x416 aspect`, ratio(rect.width, rect.height) < 0.01);
-        check(`${id} screen and canvas stay aligned`, Math.abs(rect.width - screen.clientWidth) < 1 && Math.abs(rect.height - screen.clientHeight) < 1);
-        check(`${id} retains the logical source canvas`, canvas.width === 600 && canvas.height === 416);
-        check(`${id} stays inside its viewport`, rect.right <= expectedWidth + 1 && rect.bottom <= frame.clientHeight + 1);
+        check(`${label} keeps the 600x416 aspect`, ratio(rect.width, rect.height) < 0.01);
+        check(`${label} screen and canvas stay aligned`, Math.abs(rect.width - screen.clientWidth) < 1 && Math.abs(rect.height - screen.clientHeight) < 1);
+        check(`${label} retains the logical source canvas`, canvas.width === 600 && canvas.height === 416);
+        check(`${label} stays inside its viewport`, rect.right <= expectedWidth + 1 && rect.bottom <= frame.clientHeight + 1);
       };
       function run() {
-        readFrame('wide', 1200);
-        readFrame('mobile', 390);
-        const passed = results.every(result => result.pass);
-        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
-        document.body.dataset.smoke = passed ? 'pass' : 'fail';
-        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+        const frame = document.getElementById('viewport');
+        readFrame('wide', 1200, frame);
+        frame.style.width = '390px';
+        frame.style.height = '844px';
+        setTimeout(() => {
+          readFrame('mobile', 390, frame);
+          const passed = results.every(result => result.pass);
+          const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+          document.body.dataset.smoke = passed ? 'pass' : 'fail';
+          document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+        }, 120);
       }
-      Promise.all(Array.from(document.querySelectorAll('iframe')).map(frame => new Promise(resolve => {
-        if (frame.contentDocument && frame.contentDocument.readyState === 'complete') resolve();
-        else frame.addEventListener('load', resolve, { once: true });
-      }))).then(() => setTimeout(run, 120));
+      const frame = document.getElementById('viewport');
+      if (frame.contentDocument && frame.contentDocument.readyState === 'complete') setTimeout(run, 120);
+      else frame.addEventListener('load', () => setTimeout(run, 120), { once: true });
     })();
   </script>
 </body>

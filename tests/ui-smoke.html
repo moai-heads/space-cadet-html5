@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet UI smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416" tabindex="0" role="application" aria-label="Space Cadet pinball game" aria-describedby="instructions status" aria-keyshortcuts="Z Space P H M R Enter Escape"></canvas>
+  <div id="instructions" class="sr-only">Keyboard controls are available.</div>
+  <div id="status" role="status" aria-live="polite" aria-atomic="true">PRESS SPACE OR ENTER</div>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const input = window.spaceCadetInput;
+      const game = window.spaceCadetGame;
+      const audio = window.spaceCadetAudio;
+      const ui = window.spaceCadetUi;
+      const test = window.spaceCadetTest;
+      const canvas = document.getElementById('game');
+      const status = document.getElementById('status');
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const fire = code => window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code, bubbles: true, cancelable: true }));
+      function run() {
+        check('accessible canvas metadata is present', canvas.tabIndex >= 0 && canvas.getAttribute('role') === 'application'
+          && canvas.getAttribute('aria-describedby').includes('instructions'));
+        check('live status region is connected', ui.statusNode === status && status.getAttribute('aria-live') === 'polite');
+
+        fire('Enter');
+        test.step(0.02);
+        check('Enter starts the game', game.state === 'playing');
+        check('status region reports the latest action', status.textContent === input.lastAction);
+
+        fire('KeyH');
+        test.step(0.02);
+        check('H opens the help overlay state', input.help && status.textContent === 'HELP ON');
+        fire('Escape');
+        check('Escape closes help', !input.help && status.textContent === 'HELP OFF');
+
+        fire('KeyP');
+        check('P pauses the game', game.state === 'paused' && input.paused);
+        fire('KeyP');
+        check('P resumes the game', game.state === 'playing' && !input.paused);
+
+        fire('KeyM');
+        check('M mutes audio', input.muted && audio.muted);
+        fire('KeyM');
+        check('M unmutes audio', !input.muted && !audio.muted);
+
+        game.score = 1234;
+        const highScoreBefore = game.highScore;
+        fire('KeyR');
+        check('R restarts without losing the saved high score', game.state === 'ready' && game.score === 0 && game.balls === 3 && game.highScore === highScoreBefore);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
