@@ -13,3 +13,7 @@ The returned document has `data-smoke="pass"` when every check succeeds.
 
 `table-features-smoke.html` covers the Stage 3.2 mapped feature counts and
 exercises a guide, gate, target, rollover, kicker, and slingshot in Chromium.
+
+`ramps-smoke.html` covers Stage 3.3 ramp mapping and ride/eject behavior, ramp-hole
+capture and re-entry, wormhole capture/eject behavior, rocket feedback, and
+shooter-lane exit routing.
