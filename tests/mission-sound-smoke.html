@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet mission sound smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const audio = window.spaceCadetAudio;
+      const mission = window.spaceCadetMission;
+      const rules = window.spaceCadetRules;
+      const ball = window.spaceCadetBall;
+      const test = window.spaceCadetTest;
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const fire = code => window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code }));
+      const hit = feature => {
+        feature.active = true;
+        feature.hitCooldown = 0;
+        ball.active = true;
+        ball.transport = null;
+        ball.x = feature.x;
+        ball.y = feature.y;
+        ball.previousX = ball.x;
+        ball.previousY = ball.y;
+        ball.vx = 0;
+        ball.vy = 0;
+        window.spaceCadetPlunger.armed = false;
+        test.step(0.02);
+      };
+      function run() {
+        fire('Enter');
+        test.startMission();
+        check('mission start cue fires', audio.events.includes('missionStart'));
+
+        test.missionEvent('target', 1, 'TEST TARGET');
+        check('mission progress cue fires', audio.events.includes('missionProgress'));
+        test.missionEvent('target', 2, 'TEST TARGETS');
+        check('mission completion cue fires', audio.events.includes('missionComplete') && mission.completed === 1);
+
+        test.step(3);
+        check('next mission starts with another cue', mission.phase === 'active' && audio.events.filter(name => name === 'missionStart').length >= 2);
+        test.missionEvent('ramp', 1, 'TEST RAMP');
+        check('second mission completion cue remains procedural', mission.completed === 2 && audio.events.filter(name => name === 'missionComplete').length >= 2);
+
+        test.addRankProgress(3);
+        check('promotion cue fires on rank advancement', rules.rank > 0 && audio.events.includes('promotion'));
+
+        const multiplierTarget = window.spaceCadetTargets.find(target => target.bank === 'multiplier');
+        hit(multiplierTarget);
+        check('multiplier cue fires from table rule state', rules.multiplier > 1 && audio.events.includes('multiplier'));
+
+        const fuelTarget = window.spaceCadetTargets.find(target => target.bank === 'fuel');
+        hit(fuelTarget);
+        check('fuel cue fires from table rule state', rules.fuel > 0 && audio.events.includes('fuel'));
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
