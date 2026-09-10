@@ -17,3 +17,5 @@ exercises a guide, gate, target, rollover, kicker, and slingshot in Chromium.
 `ramps-smoke.html` covers Stage 3.3 ramp mapping and ride/eject behavior, ramp-hole
 capture and re-entry, wormhole capture/eject behavior, rocket feedback, and
 shooter-lane exit routing.
+
+`rules-smoke.html` covers rank initialization, mission start/rotation/completion, target-practice progress, multiplier-bank steps, fuel-bar filling, and promotion progress.
