@@ -1,0 +1,5 @@
+# Reference material and generated previews are kept out of the source history.
+reference/
+stage-*.png
+*.zip
+.DS_Store

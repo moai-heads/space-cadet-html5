@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#06101d">
+  <title>3D Pinball — Space Cadet (HTML5)</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: #02050a; }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 18px;
+      overflow: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #c8e9ff;
+      background:
+        radial-gradient(ellipse at 50% 15%, rgba(21,74,119,.32), transparent 50%),
+        linear-gradient(135deg, #010207 0%, #071321 48%, #02050b 100%);
+    }
+    #wrap {
+      width: min(1120px, 100vw - 24px);
+      height: min(780px, 100vh - 24px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+    }
+    #game {
+      display: block;
+      width: 100%;
+      height: calc(100% - 30px);
+      max-height: 748px;
+      border: 1px solid #1c5a7d;
+      border-radius: 7px;
+      background: #02070e;
+      box-shadow:
+        0 0 0 2px #071828,
+        0 0 28px rgba(0, 149, 255, .16),
+        0 22px 60px rgba(0,0,0,.75);
+      touch-action: none;
+      user-select: none;
+      cursor: crosshair;
+    }
+    .caption {
+      width: 100%;
+      text-align: center;
+      color: #77a8c7;
+      font: 12px/1.2 Consolas, monospace;
+      letter-spacing: .04em;
+      opacity: .85;
+    }
+    .caption b { color: #e4bd54; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main id="wrap">
+    <canvas id="game" width="1100" height="760" aria-label="Space Cadet pinball game"></canvas>
+    <div class="caption"><b>Z / LEFT SHIFT</b> left flipper&nbsp; · &nbsp;<b>/ / RIGHT SHIFT</b> right flipper&nbsp; · &nbsp;<b>SPACE</b> launch&nbsp; · &nbsp;<b>A/D or ARROWS</b> nudge&nbsp; · &nbsp;<b>P</b> pause&nbsp; · &nbsp;<b>H</b> help</div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
