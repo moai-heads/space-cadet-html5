@@ -19,6 +19,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 5.1 complete:** added a lazy Web Audio mixer with master/compressor, SFX/UI buses, gesture unlock, mute gain control, visibility suspend/resume, and audio status HUD; `tests/audio-smoke.html` passes; commits `db130b8` and `e53dee5`.
 - **Stage 5.2 complete:** added procedural cooldown-aware sounds for flippers, rails, bumpers, targets, rollovers, kickers, slingshots, ramps, holes, wormholes, launch, drain, and nudge; `tests/sound-smoke.html` passes; commits `fbdd28a` and `35cb3ff`.
 - **Stage 5.3 complete:** added restrained procedural mission start/progress/complete/fail, promotion, multiplier, and fuel cues; `tests/mission-sound-smoke.html` passes; commits `6674917` and `a70958b`.
+- **Stage 6.1 complete:** polished keyboard, mouse, touch, focus-loss, pointer-drag, and canvas focus behavior; added `tests/controls-smoke.html`; commits `c092a96` and `d4491bc`.
 - See `PLAN.md` for the live stage checklist and next steps.
 
 ## Run
@@ -31,7 +32,7 @@ python3 -m http.server 8080
 
 Then visit `http://localhost:8080/`.
 
-To run the browser smoke tests, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, and `tests/mission-sound-smoke.html` from the same server; each should show `data-smoke="pass"`.
+To run the browser smoke tests, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, `tests/mission-sound-smoke.html`, and `tests/controls-smoke.html` from the same server; each should show `data-smoke="pass"`.
 
 ## Controls
 

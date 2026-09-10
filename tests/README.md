@@ -29,3 +29,5 @@ shooter-lane exit routing.
 `sound-smoke.html` covers the procedural flipper, rail, bumper, target, rollover, kicker, slingshot, ramp, hole, wormhole, launch, drain, and nudge sound event set plus mute suppression.
 
 `mission-sound-smoke.html` covers mission start/progress/completion, promotion, multiplier, and fuel rule cues.
+
+`controls-smoke.html` covers keyboard bindings, touch zones, pointer drag transfer, pointer release outside the canvas, canvas focus, focus-loss resets, and modified-shortcut protection.
