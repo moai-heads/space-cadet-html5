@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 10, 2026
-**Current position:** Stage 2.12 in progress
+**Current position:** Stage 3.1 in progress
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -27,11 +27,11 @@ stage changes, and record the validating test or commit for completed work.
 - [x] **2.9 Drain/respawn:** life decrement, service delay, next-ball reset, and final-ball game over. Commit `9f96266`.
 - [x] **2.10 Scoring hooks:** rail, flipper, and bumper awards with score popups. Commit `fab54c5`.
 - [x] **2.11 Input smoke test:** deterministic Chromium harness covers controls, pause/mute/help, nudge, drain, and respawn. Result: `data-smoke="pass"`.
-- [-] **2.12 Playable-core checkpoint:** package the tested core and record the browser test result.
+- [x] **2.12 Playable-core checkpoint:** clean archive, checkpoint notes, and passing browser validation. See `CHECKPOINT-2.12.md`.
 
 ## Stage 3 — Table recreation
 
-- [ ] 3.1 Migrate the temporary geometry to the reference table coordinate map.
+- [-] 3.1 Migrate the temporary geometry to the reference table coordinate map.
 - [ ] 3.2 Add target banks, rollovers, lane guides, gates, kickers, and slingshots.
 - [ ] 3.3 Add ramps, ramp holes, rocket/wormhole behavior, and shooter-lane exit routing.
 - [ ] 3.4 Add mission/rank progression and table-specific rule state.

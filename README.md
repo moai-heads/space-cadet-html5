@@ -1,12 +1,13 @@
 # 3D Pinball — Space Cadet (HTML5)
 
-A from-scratch, browser-playable homage to the classic Windows Space Cadet table. It uses a Canvas 2D renderer, fixed-step physics, a drain/respawn lifecycle, procedural table art, and synthesized Web Audio effects so it runs offline with no external assets.
+A from-scratch, browser-playable homage to the classic Windows Space Cadet table. It uses a Canvas 2D renderer, fixed-step physics, a drain/respawn lifecycle, procedural table art, and no external runtime assets. Procedural Web Audio is planned for Stage 5.
 
 ## Progress
 
 - **Stage 2.9 complete:** open-drain detection, ball decrement, drain flash/banner, service delay, next-ball plunger reset, and final-ball game over.
 - **Stage 2.10 complete:** centralized score events with rail, flipper, and bumper awards plus score popups.
 - **Stage 2.11 complete:** deterministic Chromium smoke harness passes keyboard controls, pause/mute/help, nudge expiry, drain, and respawn.
+- **Stage 2.12 complete:** playable-core checkpoint packaged and validated; see `CHECKPOINT-2.12.md`.
 - See `PLAN.md` for the live stage checklist and next steps.
 
 ## Run
@@ -19,6 +20,8 @@ python3 -m http.server 8080
 
 Then visit `http://localhost:8080/`.
 
+To run the browser smoke test, open `tests/input-smoke.html` from the same server; its result should show `data-smoke="pass"`.
+
 ## Controls
 
 - **Z / Left Shift:** left flipper
@@ -28,6 +31,6 @@ Then visit `http://localhost:8080/`.
 - **Enter:** new game
 - **P:** pause
 - **H:** help overlay
-- **M:** mute/unmute synthesized sound
+- **M:** toggle mute state (audio is planned for Stage 5)
 
 This is an independent, from-scratch fan recreation. It does not include Microsoft binaries, original sprites, or original audio files.
