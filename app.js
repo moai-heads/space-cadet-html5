@@ -537,6 +537,10 @@
     help: false,
     paused: false,
     pointerAction: null,
+    pointerId: null,
+    pointerType: '',
+    lastPointerAt: 0,
+    controlResetCount: 0,
     lastAction: 'READY',
     lastActionAt: 0,
   };
@@ -1224,7 +1228,7 @@
     input.lastActionAt = performance.now();
   }
 
-  function setButton(action, pressed, source = 'KEY') {
+  function setButton(action, pressed, source = 'KEY', options = {}) {
     if (action !== 'left' && action !== 'right' && action !== 'plunger') return;
     const wasPressed = input[action];
     input[action] = pressed;
@@ -1232,8 +1236,24 @@
       if (action === 'plunger' && game.state === 'ready') beginGame();
       if (!wasPressed && (action === 'left' || action === 'right')) playSound('flipper', .85);
       markAction(`${source} ${action.toUpperCase()}`);
-    } else if (action === 'plunger' && wasPressed) {
+    } else if (action === 'plunger' && wasPressed && options.launch !== false) {
       launchBall();
+    }
+  }
+
+  function releaseAllControls(source = 'FOCUS RESET') {
+    const hadControl = input.left || input.right || input.plunger || input.nudgeX !== 0 || input.pointerAction !== null;
+    input.left = false;
+    input.right = false;
+    input.plunger = false;
+    input.nudgeX = 0;
+    input.nudgeUntil = 0;
+    input.pointerAction = null;
+    input.pointerId = null;
+    input.pointerType = '';
+    if (hadControl) {
+      input.controlResetCount += 1;
+      markAction(source);
     }
   }
 
@@ -1245,9 +1265,10 @@
   }
 
   function onKeyDown(event) {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
     unlockAudio();
     const action = keyAction(event.code);
-    if (action || ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyP', 'KeyH', 'KeyM', 'Enter'].includes(event.code)) {
+    if (action || ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyP', 'KeyH', 'KeyM', 'Enter', 'Escape'].includes(event.code)) {
       event.preventDefault();
     }
 
@@ -1274,7 +1295,14 @@
       markAction(input.help ? 'HELP ON' : 'HELP OFF');
     } else if (event.code === 'KeyM') {
       toggleMute();
-    } else if (event.code === 'Enter') {
+    } else if (event.code === 'Escape') {
+      if (input.help) {
+        input.help = false;
+        markAction('HELP OFF');
+      } else if (game.state === 'playing' || game.state === 'paused') {
+        pauseOrResume();
+      }
+    } else if (event.code === 'Enter' || event.code === 'NumpadEnter') {
       if (game.state === 'gameover') startNewGame();
       else beginGame();
     }
@@ -1296,8 +1324,8 @@
   function pointerActionAt(x, y) {
     const insideBoard = x >= board.x && x <= board.x + board.w && y >= board.y && y <= board.y + board.h;
     if (!insideBoard || y < board.y + board.h - 116) return null;
-    // The original projection puts both flippers and the shooter lane in the
-    // lower-right half of the 365px table image, not across the whole canvas.
+    // Keep the touch zones aligned to the projected lower apron: left bat,
+    // right bat, then the shooter lane. This works for mouse and touch alike.
     const localX = x - board.x;
     if (localX < 175) return 'left';
     if (localX < 282) return 'right';
@@ -1307,18 +1335,41 @@
   function onPointerDown(event) {
     event.preventDefault();
     unlockAudio();
+    if (canvas.focus) canvas.focus({ preventScroll: true });
+    if (input.pointerAction) releaseAllControls('TOUCH RESET');
     const pos = pointerPosition(event);
     const action = pointerActionAt(pos.x, pos.y);
     if (!action) return;
     input.pointerAction = action;
-    if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
+    input.pointerId = event.pointerId ?? null;
+    input.pointerType = event.pointerType || 'pointer';
+    input.lastPointerAt = performance.now();
+    try {
+      if (canvas.setPointerCapture && event.pointerId != null) canvas.setPointerCapture(event.pointerId);
+    } catch (_) { /* synthetic/test pointer events may not be capturable */ }
     setButton(action, true, 'TOUCH');
   }
 
-  function releasePointerAction(event) {
+  function onPointerMove(event) {
+    if (!input.pointerAction) return;
+    if (input.pointerId !== null && event.pointerId != null && event.pointerId !== input.pointerId) return;
     event.preventDefault();
+    const pos = pointerPosition(event);
+    const nextAction = pointerActionAt(pos.x, pos.y);
+    input.lastPointerAt = performance.now();
+    if (nextAction === input.pointerAction) return;
+    setButton(input.pointerAction, false, 'TOUCH', { launch: false });
+    input.pointerAction = nextAction;
+    if (nextAction) setButton(nextAction, true, 'TOUCH');
+  }
+
+  function releasePointerAction(event) {
+    if (event && event.pointerId != null && input.pointerId !== null && event.pointerId !== input.pointerId) return;
+    if (event && event.cancelable) event.preventDefault();
     if (input.pointerAction) setButton(input.pointerAction, false, 'TOUCH');
     input.pointerAction = null;
+    input.pointerId = null;
+    input.pointerType = '';
   }
 
   // Stage 2.4 + 3.1: the ball now lives in the same projected screen space
@@ -3726,14 +3777,11 @@
   window.addEventListener('resize', fitCanvas, { passive: true });
   window.addEventListener('keydown', onKeyDown, { passive: false });
   window.addEventListener('keyup', onKeyUp, { passive: false });
-  window.addEventListener('blur', () => {
-    input.left = false;
-    input.right = false;
-    input.plunger = false;
-    input.nudgeX = 0;
-    input.pointerAction = null;
-  });
+  window.addEventListener('blur', () => releaseAllControls('FOCUS RESET'));
+  window.addEventListener('pointerup', releasePointerAction, { passive: false });
+  window.addEventListener('pointercancel', releasePointerAction, { passive: false });
   document.addEventListener('visibilitychange', () => {
+    if (document.hidden) releaseAllControls('VISIBILITY RESET');
     if (!audio.context) return;
     if (document.hidden) {
       const suspend = audio.context.suspend();
@@ -3747,6 +3795,7 @@
     }
   });
   canvas.addEventListener('pointerdown', onPointerDown, { passive: false });
+  canvas.addEventListener('pointermove', onPointerMove, { passive: false });
   canvas.addEventListener('pointerup', releasePointerAction, { passive: false });
   canvas.addEventListener('pointercancel', releasePointerAction, { passive: false });
   canvas.addEventListener('contextmenu', event => event.preventDefault());
