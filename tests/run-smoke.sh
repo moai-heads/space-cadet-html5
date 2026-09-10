@@ -57,6 +57,7 @@ TESTS=(
   ui-smoke
   presentation-smoke
 )
+GAMEPLAY_SIZES=(1280,900 900,700 390,844)
 
 passed=0
 failed=0
@@ -73,7 +74,7 @@ for test in "${TESTS[@]}"; do
     "http://127.0.0.1:${port}/tests/${test}.html"
   )
   case "$test" in
-    audio-smoke|sound-smoke|mission-sound-smoke|controls-smoke|ui-smoke|presentation-smoke)
+    audio-smoke|sound-smoke|mission-sound-smoke|controls-smoke|ui-smoke|presentation-smoke|gameplay-smoke)
       args+=(--autoplay-policy=no-user-gesture-required)
       ;;
   esac
@@ -84,6 +85,34 @@ for test in "${TESTS[@]}"; do
     passed=$((passed + 1))
   else
     printf 'FAIL  %s\n' "$test"
+    grep -o '<pre id="result">[^<]*' "$output" | head -1 || true
+    tail -3 "$errors" >&2 || true
+    failed=$((failed + 1))
+  fi
+done
+
+for size in "${GAMEPLAY_SIZES[@]}"; do
+  label="gameplay-smoke[${size/,/_}]"
+  safe_size="${size/,/_}"
+  output="$tmp_dir/gameplay-${safe_size}.html"
+  errors="$tmp_dir/gameplay-${safe_size}.err"
+  args=(
+    --headless
+    --no-sandbox
+    --disable-gpu
+    --hide-scrollbars
+    --window-size="$size"
+    --virtual-time-budget=6000
+    --dump-dom
+    "http://127.0.0.1:${port}/tests/gameplay-smoke.html"
+    --autoplay-policy=no-user-gesture-required
+  )
+  if "$CHROMIUM_BIN" "${args[@]}" >"$output" 2>"$errors" \
+    && grep -q 'data-smoke="pass"' "$output"; then
+    printf 'PASS  %s\n' "$label"
+    passed=$((passed + 1))
+  else
+    printf 'FAIL  %s\n' "$label"
     grep -o '<pre id="result">[^<]*' "$output" | head -1 || true
     tail -3 "$errors" >&2 || true
     failed=$((failed + 1))

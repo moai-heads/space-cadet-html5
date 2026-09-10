@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet multi-viewport gameplay smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; width: 100%; height: 100%; background: #02070e; }
+    body { overflow: hidden; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #gameframe { display: block; width: 100vw; height: 100vh; border: 0; }
+    #result { position: fixed; inset: 0 auto auto 0; margin: 0; padding: 8px; background: rgba(0,0,0,.82); white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <iframe id="gameframe" title="Space Cadet game" src="../index.html?test=1"></iframe>
+  <pre id="result">RUNNING…</pre>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const frame = document.getElementById('gameframe');
+
+      function fire(win, type, code) {
+        win.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true, cancelable: true }));
+      }
+
+      function placeBall(ball, plunger, point, test) {
+        ball.active = true;
+        ball.transport = null;
+        ball.shooterExited = false;
+        ball.x = point.x;
+        ball.y = point.y;
+        ball.previousX = ball.x;
+        ball.previousY = ball.y;
+        ball.vx = 0;
+        ball.vy = 0;
+        plunger.armed = false;
+        test.step(0.02);
+      }
+
+      function drainOnce(app) {
+        const { ball, drain, plunger, test } = app;
+        placeBall(ball, plunger, { x: (drain.minX + drain.maxX) / 2, y: drain.y + drain.captureDepth + 2 }, test);
+        test.step(0.9);
+      }
+
+      function run() {
+        const win = frame.contentWindow;
+        const doc = frame.contentDocument;
+        const app = {
+          game: win.spaceCadetGame,
+          ball: win.spaceCadetBall,
+          plunger: win.spaceCadetPlunger,
+          flippers: win.spaceCadetFlippers,
+          bumpers: win.spaceCadetBumpers,
+          collisions: win.spaceCadetCollisionState,
+          drain: win.spaceCadetDrain,
+          mission: win.spaceCadetMission,
+          test: win.spaceCadetTest,
+        };
+        const canvas = doc.getElementById('game');
+        const rect = canvas.getBoundingClientRect();
+        check('viewport keeps the reference aspect', Math.abs(rect.width / rect.height - 600 / 416) < .02);
+        check('viewport contains the game canvas', rect.right <= frame.clientWidth + 1 && rect.bottom <= frame.clientHeight + 1);
+
+        fire(win, 'keydown', 'Enter');
+        app.test.step(0.02);
+        check('game starts', app.game.state === 'playing');
+
+        fire(win, 'keydown', 'Space');
+        app.test.step(0.08);
+        check('plunger charges', app.plunger.charge > 0);
+        fire(win, 'keyup', 'Space');
+        app.test.step(0.02);
+        check('plunger launches', !app.plunger.armed && app.ball.active);
+
+        fire(win, 'keydown', 'KeyZ');
+        app.test.step(0.02);
+        check('left flipper responds', app.flippers.left.pressed);
+        fire(win, 'keyup', 'KeyZ');
+        fire(win, 'keydown', 'Slash');
+        app.test.step(0.02);
+        check('right flipper responds', app.flippers.right.pressed);
+        fire(win, 'keyup', 'Slash');
+
+        const bumper = app.bumpers[0];
+        const scoreBefore = app.game.score;
+        const bumperHitsBefore = app.collisions.bumperHits;
+        bumper.hitCooldown = 0;
+        placeBall(app.ball, app.plunger, bumper, app.test);
+        check('bumper collision registers and scores', app.collisions.bumperHits > bumperHitsBefore && app.game.score > scoreBefore, `hits=${app.collisions.bumperHits}/${bumperHitsBefore} score=${app.game.score}/${scoreBefore} points=${bumper.points} mult=${win.spaceCadetRules.multiplier} last=${win.spaceCadetScoring.lastLabel} pos=${app.ball.x},${app.ball.y} bumper=${bumper.x},${bumper.y}`);
+
+        fire(win, 'keydown', 'KeyR');
+        app.test.step(0.02);
+        fire(win, 'keydown', 'Enter');
+        app.test.step(0.02);
+        app.test.startMission();
+        app.test.missionEvent('target', 3, 'VIEWPORT TARGETS');
+        check('mission completes through rule events', app.mission.completed === 1 && app.mission.phase === 'cooldown');
+
+        const ballsBeforeDrain = app.game.balls;
+        drainOnce(app);
+        check('drain consumes one ball', app.game.balls === ballsBeforeDrain - 1);
+        check('respawn re-arms plunger', app.plunger.armed && !app.ball.active);
+        drainOnce(app);
+        drainOnce(app);
+        check('final drain reaches game over', app.game.state === 'gameover' && app.game.balls === 0);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      frame.addEventListener('load', () => setTimeout(() => {
+        try { run(); } catch (error) {
+          document.body.dataset.smoke = 'error';
+          document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+        }
+      }, 150), { once: true });
+    })();
+  </script>
+</body>
+</html>
