@@ -27,7 +27,7 @@ stage changes, and record the validating test or commit for completed work.
 - [x] **2.9 Drain/respawn:** life decrement, service delay, next-ball reset, and final-ball game over. Commit `9f96266`.
 - [x] **2.10 Scoring hooks:** rail, flipper, and bumper awards with score popups. Commit `fab54c5`.
 - [x] **2.11 Input smoke test:** deterministic Chromium harness covers controls, pause/mute/help, nudge, drain, and respawn. Result: `data-smoke="pass"`.
-- [x] **2.12 Playable-core checkpoint:** clean archive, checkpoint notes, and passing browser validation. See `CHECKPOINT-2.12.md`.
+- [x] **2.12 Playable-core checkpoint:** clean archive, checkpoint notes, and passing browser validation. Checkpoint commit `35063c4`; archive `space-cadet-html5-stage-2.12.zip`. See `CHECKPOINT-2.12.md`.
 
 ## Stage 3 — Table recreation
 
