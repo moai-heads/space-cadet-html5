@@ -633,6 +633,13 @@
     launch: .18,
     drain: .35,
     nudge: .12,
+    missionStart: 0,
+    missionProgress: .08,
+    missionComplete: 0,
+    missionFail: 0,
+    promotion: 0,
+    multiplier: .18,
+    fuel: .12,
   });
 
   function soundReady(name) {
@@ -747,6 +754,30 @@
         break;
       case 'nudge':
         playTone(92, 54, .08, .045 * amount, 'sine');
+        break;
+      case 'missionStart':
+        playTone(300, 620, .22, .065 * amount, 'triangle', 'ui');
+        playTone(450, 900, .18, .040 * amount, 'sine', 'ui', 7);
+        break;
+      case 'missionProgress':
+        playTone(520, 700, .075, .035 * amount, 'triangle', 'ui');
+        break;
+      case 'missionComplete':
+        playTone(260, 780, .36, .085 * amount, 'triangle', 'ui');
+        playTone(390, 1170, .30, .045 * amount, 'sine', 'ui', 7);
+        break;
+      case 'missionFail':
+        playTone(300, 72, .36, .070 * amount, 'sawtooth', 'ui');
+        break;
+      case 'promotion':
+        playTone(360, 920, .55, .095 * amount, 'triangle', 'ui');
+        playTone(540, 1320, .42, .050 * amount, 'sine', 'ui', 7);
+        break;
+      case 'multiplier':
+        playTone(680, 1180, .16, .065 * amount, 'square', 'ui');
+        break;
+      case 'fuel':
+        playTone(410, 630, .09, .040 * amount, 'sine', 'ui');
         break;
       default:
         return false;
@@ -912,6 +943,7 @@
     mission.lastEvent = '';
     game.lastMessage = `MISSION: ${definition.name}`;
     rules.lastEvent = `MISSION ${definition.name}`;
+    playSound('missionStart', .9);
     markAction(`MISSION ${definition.name}`);
     return true;
   }
@@ -926,6 +958,7 @@
     mission.lastEvent = 'TIME EXPIRED';
     game.lastMessage = `${mission.name} FAILED`;
     rules.lastEvent = `${mission.name} FAILED`;
+    playSound('missionFail', .9);
     mission.index = (mission.index + 1) % MISSION_DEFINITIONS.length;
     markAction('MISSION FAILED');
     return true;
@@ -948,6 +981,7 @@
       mission.banner = Math.max(mission.banner, 4.5);
       game.lastMessage = `PROMOTION TO ${rules.rankName.toUpperCase()}`;
       rules.lastEvent = game.lastMessage;
+      playSound('promotion', 1);
       markAction(game.lastMessage);
     }
     return promoted;
@@ -965,6 +999,7 @@
     mission.lastEvent = 'COMPLETE';
     game.lastMessage = `${completed.name} COMPLETE`;
     rules.lastEvent = game.lastMessage;
+    playSound('missionComplete', 1);
     awardScore(completed.score, 'MISSION');
     addRankProgress(completed.rankAward);
     mission.index = (mission.index + 1) % MISSION_DEFINITIONS.length;
@@ -980,12 +1015,14 @@
     mission.banner = Math.max(mission.banner, 1.1);
     rules.lastEvent = label;
     if (mission.progress >= mission.required) return completeMission();
+    playSound('missionProgress', .65);
     return true;
   }
 
   function advanceFuel(amount = 1) {
     const before = rules.fuel;
     rules.fuel = Math.min(rules.fuelMax, rules.fuel + Math.max(0, amount));
+    if (rules.fuel > before) playSound('fuel', rules.fuel === rules.fuelMax ? 1 : .55);
     if (before < rules.fuelMax && rules.fuel === rules.fuelMax) {
       awardScore(25000, 'FUEL BAR');
       game.lastMessage = 'FUEL BAR FULL';
@@ -1021,14 +1058,17 @@
           addRankProgress(1);
         }
         break;
-      case 'multiplier':
+      case 'multiplier': {
+        const previousStage = rules.multiplierStage;
         rules.multiplierLights = rules.bankProgress.multiplier;
         rules.multiplierStage = Math.min(MULTIPLIER_STEPS.length - 1, rules.bankProgress.multiplier);
         rules.multiplier = MULTIPLIER_STEPS[rules.multiplierStage];
         rules.multiplierTimer = 30;
+        if (rules.multiplierStage > previousStage) playSound('multiplier', .8);
         break;
+      }
       case 'fuel':
-        rules.fuel = Math.min(rules.fuelMax, rules.fuel + 4);
+        advanceFuel(4);
         rules.bankProgress.fuel = rules.bankProgress.fuel % TARGET_BANK_LIMITS.fuel;
         break;
       case 'mission':
