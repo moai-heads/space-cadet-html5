@@ -13,6 +13,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 3.3 complete:** added two source-projected ramp rides, ramp rails, ramp-hole capture and re-entry, three timed wormhole sinks, rocket launch feedback, and a routed shooter-lane exit. `tests/ramps-smoke.html` passes; commit `94c566d`.
 - **Stage 3.4 complete:** added nine ranks, 17 named missions, mission timers/completion, promotion progress, multiplier steps (1x/2x/5x/10x), fuel bar, target-bank rules, mission banner, and `tests/rules-smoke.html`; commits `570e091` and `63c47ef`.
 - **Stage 3.5 complete:** centralized collision tuning, adjusted rail/bumper/kicker/flipper response, added collision slop and tangential damping, and narrowed the drain funnel; `tests/tuning-smoke.html` passes with the full regression set. Commits `11d7174` and `67ba213`.
+- **Stage 4.1 complete:** corrected the 600×416 reference aspect ratio, added a responsive screen frame with safe-area support, and validated wide/mobile layouts with `tests/layout-smoke.html`; commits `5122ee9` and `0745c53`.
 - See `PLAN.md` for the live stage checklist and next steps.
 
 ## Run
@@ -25,7 +26,7 @@ python3 -m http.server 8080
 
 Then visit `http://localhost:8080/`.
 
-To run the browser smoke tests, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, and `tests/tuning-smoke.html` from the same server; each should show `data-smoke="pass"`.
+To run the browser smoke tests, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, and `tests/layout-smoke.html` from the same server; each should show `data-smoke="pass"`.
 
 ## Controls
 

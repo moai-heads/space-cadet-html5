@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 10, 2026
-**Current position:** Stage 4.1 ready
+**Current position:** Stage 4.2 ready
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -39,7 +39,7 @@ stage changes, and record the validating test or commit for completed work.
 
 ## Stage 4 — Visual recreation
 
-- [ ] 4.1 Match the original low-resolution layout and perspective while retaining responsive scaling.
+- [x] 4.1 Match the original low-resolution layout and perspective while retaining responsive scaling. Preserved the 600×416 reference aspect ratio with a responsive screen frame, safe-area handling, landscape/portrait sizing, and a layout smoke harness. Commits `5122ee9`, `0745c53`; all six Chromium smoke tests pass.
 - [ ] 4.2 Replace diagnostic labels with bitmap-like table art, rails, lamps, chrome, and mission indicators.
 - [ ] 4.3 Tune palette, glow, CRT treatment, score panel, ball display, and transient hit effects.
 
