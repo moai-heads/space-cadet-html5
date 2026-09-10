@@ -23,3 +23,5 @@ shooter-lane exit routing.
 `tuning-smoke.html` covers shared physics constants, bounded restitution, tuned kicker/bumper/slingshot impulses, and the narrowed drain capture funnel.
 
 `layout-smoke.html` validates the responsive screen frame, 600×416 aspect ratio, logical canvas dimensions, viewport containment, and mobile/desktop alignment.
+
+`audio-smoke.html` covers lazy AudioContext creation, master/SFX/UI bus creation, gesture unlock, mute gain targeting, and observable audio state.

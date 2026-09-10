@@ -16,6 +16,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 4.1 complete:** corrected the 600×416 reference aspect ratio, added a responsive screen frame with safe-area support, and validated wide/mobile layouts with `tests/layout-smoke.html`; commits `5122ee9` and `0745c53`.
 - **Stage 4.2 complete:** added procedural bitmap decals, chrome rails, textured table panels, lamp banks, and mission/rank indicators without redistributing original artwork; commit `37860ea`.
 - **Stage 4.3 complete:** added digital score segments, ball display polish, CRT scanlines/vignette, palette-aware bloom, and transient particle/ring effects; commit `3bf8cac`.
+- **Stage 5.1 complete:** added a lazy Web Audio mixer with master/compressor, SFX/UI buses, gesture unlock, mute gain control, visibility suspend/resume, and audio status HUD; `tests/audio-smoke.html` passes; commits `db130b8` and `e53dee5`.
 - See `PLAN.md` for the live stage checklist and next steps.
 
 ## Run
@@ -28,7 +29,7 @@ python3 -m http.server 8080
 
 Then visit `http://localhost:8080/`.
 
-To run the browser smoke tests, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, and `tests/layout-smoke.html` from the same server; each should show `data-smoke="pass"`.
+To run the browser smoke tests, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/layout-smoke.html`, and `tests/audio-smoke.html` from the same server; each should show `data-smoke="pass"`.
 
 ## Controls
 
