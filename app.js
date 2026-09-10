@@ -1,7 +1,8 @@
 /*
  * 3D Pinball — Space Cadet (HTML5)
- * Stages 2.1–2.8: canvas boot, fixed loop, input, physics, collisions,
- * flippers, game state, and plunger lane. Later stages add scoring/rules.
+ * Stages 2.1–2.9: canvas boot, fixed loop, input, physics, collisions,
+ * flippers, game state, plunger lane, and drain/respawn. Later stages add
+ * scoring, table rules, and audio.
  */
 (() => {
   'use strict';
@@ -41,8 +42,8 @@
     lastActionAt: 0,
   };
 
-  // Stage 2.6: explicit game lifecycle. Scoring and ball-drain rules will
-  // attach to this state machine in later playable-core stages.
+  // Stage 2.6: explicit game lifecycle. Stage 2.9 consumes this state for
+  // ball drains and the transition to game over.
   const game = {
     state: 'ready', // ready -> playing -> paused/gameover
     score: 0,
@@ -88,6 +89,8 @@
     game.score = 0;
     game.balls = 3;
     game.player = 1;
+    drain.cooldown = 0;
+    drain.flash = 0;
     setGameState('ready', 'PRESS SPACE OR ENTER');
     armPlunger();
     markAction('NEW GAME');
@@ -264,11 +267,65 @@
     lastLaunchSpeed: 0,
   };
 
+  // Stage 2.9: the open lower apron is a real drain rather than a safety
+  // reset. A short service interval makes the lost-ball transition readable
+  // and gives the next ball a predictable plunger-ready moment.
+  const drain = {
+    y: 674,
+    minX: 88,
+    maxX: 440,
+    cooldown: 0,
+    serviceTime: 0.78,
+    flash: 0,
+    total: 0,
+    lastReason: '',
+  };
+
   function armPlunger() {
     plunger.armed = true;
     plunger.charge = 0;
     plunger.lastLaunchSpeed = 0;
     resetBallMotion(false);
+  }
+
+  function ballHasEnteredDrain() {
+    return ball.y - ball.radius > drain.y
+      && ball.x > drain.minX - ball.radius
+      && ball.x < drain.maxX + ball.radius;
+  }
+
+  function drainBall(reason = 'OPEN DRAIN') {
+    if (!ball.active || game.state !== 'playing' || drain.cooldown > 0) return false;
+
+    ball.active = false;
+    ball.vx = 0;
+    ball.vy = 0;
+    ball.trail.length = 0;
+    drain.cooldown = drain.serviceTime;
+    drain.flash = 1;
+    drain.total += 1;
+    drain.lastReason = reason;
+    game.balls = Math.max(0, game.balls - 1);
+
+    if (game.balls === 0) {
+      finishGame();
+    } else {
+      game.lastMessage = 'BALL DRAINED — NEXT BALL';
+      markAction(`DRAIN / ${game.balls} LEFT`);
+    }
+    return true;
+  }
+
+  function updateDrain(dt) {
+    drain.flash = Math.max(0, drain.flash - dt * 3.4);
+    if (game.state !== 'playing' || input.paused || drain.cooldown <= 0) return;
+
+    drain.cooldown = Math.max(0, drain.cooldown - dt);
+    if (drain.cooldown === 0 && game.balls > 0) {
+      armPlunger();
+      game.lastMessage = 'HOLD SPACE TO LAUNCH';
+      markAction('NEXT BALL READY');
+    }
   }
 
   function launchBall() {
@@ -353,9 +410,16 @@
     if (ball.trail.length > 10) ball.trail.shift();
     for (const point of ball.trail) point.life *= 0.90;
 
-    // Temporary off-table safety reset until boundary/drain collision stages.
+    // Stage 2.9: crossing the open apron consumes a ball. Keep a separate
+    // safety reset only for impossible horizontal escapes during development.
+    if (ballHasEnteredDrain()) {
+      drainBall();
+      return;
+    }
     const margin = 42;
-    if (ball.y > ballPhysics.height + margin || ball.x < -margin || ball.x > ballPhysics.width + margin) {
+    if (ball.y > ballPhysics.height + margin) {
+      drainBall('SAFETY DRAIN');
+    } else if (ball.x < -margin || ball.x > ballPhysics.width + margin) {
       resetBallMotion();
     }
   }
@@ -736,9 +800,9 @@
     ctx.arc(p.x + 32, p.y + 665, 3, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    text('STAGE 2.8  /  PLUNGER LANE', p.x + 43, p.y + 630, 11, '#6699b2', 'left', 400);
-    const ballSpeed = Math.round(Math.hypot(ball.vx, ball.vy));
-    text(`PLUNGER ${String(Math.round(plunger.charge * 100)).padStart(3, '0')}%  V ${plunger.lastLaunchSpeed || '---'}`,
+    text('STAGE 2.9  /  DRAIN + RESPAWN', p.x + 43, p.y + 630, 11, '#6699b2', 'left', 400);
+    const nextBall = drain.cooldown > 0 ? `${drain.cooldown.toFixed(1)}s` : (plunger.armed ? 'READY' : 'IN PLAY');
+    text(`DRAIN ${String(drain.total).padStart(2, '0')}  NEXT ${nextBall}`,
       p.x + 30, p.y + 647, 9, '#5b8ca3', 'left', 400);
 
     const inputColor = (on) => on ? '#f4d86e' : '#4b7184';
@@ -917,6 +981,26 @@
     ctx.stroke();
 
     // Lower lanes and flippers.
+    const drainLeft = inner.x + drain.minX + 12;
+    const drainRight = inner.x + drain.maxX - 12;
+    const drainY = inner.y + drain.y;
+    ctx.save();
+    ctx.globalAlpha = 0.82 + drain.flash * 0.18;
+    ctx.fillStyle = '#01070d';
+    ctx.beginPath();
+    ctx.moveTo(drainLeft, drainY - 4);
+    ctx.lineTo(drainRight, drainY - 4);
+    ctx.lineTo(drainRight - 15, drainY + 18);
+    ctx.lineTo(drainLeft + 15, drainY + 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = drain.flash > 0 ? '#f2cf63' : '#456b7b';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    text('DRAIN', (drainLeft + drainRight) / 2, drainY + 8, 9, drain.flash > 0 ? '#f2cf63' : '#6f98a6', 'center');
+    ctx.restore();
+
     ctx.strokeStyle = '#d1dde0';
     ctx.lineWidth = 6;
     ctx.lineCap = 'round';
@@ -991,6 +1075,24 @@
     text('TEST TABLE / REFERENCE PASS', bx + bw / 2, by + bh - 8, 11, '#8dbbc7', 'center', 400);
   }
 
+  function drawDrainStatus() {
+    if (game.state !== 'playing' || drain.cooldown <= 0) return;
+
+    const x = board.x + 76;
+    const y = board.y + board.h - 146;
+    const w = board.w - 152;
+    ctx.save();
+    ctx.fillStyle = 'rgba(1, 8, 15, .72)';
+    ctx.strokeStyle = '#c59d4f';
+    ctx.lineWidth = 1;
+    roundedRect(x, y, w, 36, 5);
+    ctx.fill();
+    ctx.stroke();
+    text('BALL DRAINED', x + w / 2, y + 12, 10, '#f0d36b', 'center');
+    text(`NEXT BALL IN ${drain.cooldown.toFixed(1)}s`, x + w / 2, y + 27, 9, '#8cb7c1', 'center', 400);
+    ctx.restore();
+  }
+
   function drawGameStateOverlay() {
     if (game.state === 'playing') return;
 
@@ -1026,6 +1128,7 @@
     drawBackdrop(t);
     drawScorePanel();
     drawTable(t);
+    drawDrainStatus();
     drawGameStateOverlay();
 
     // Very light CRT scanlines, kept below text contrast threshold.
@@ -1042,6 +1145,7 @@
     simTicks += 1;
     if (game.state !== 'paused') game.stateTime += dt;
     updatePlunger(dt);
+    updateDrain(dt);
     updateFlipper(flippers.left, input.left, dt);
     updateFlipper(flippers.right, input.right, dt);
     simulateBall(dt);
@@ -1092,6 +1196,7 @@
   window.spaceCadetCollisionState = collisionState;
   window.spaceCadetFlippers = flippers;
   window.spaceCadetPlunger = plunger;
+  window.spaceCadetDrain = drain;
 
   fitCanvas();
   requestAnimationFrame(frame);
