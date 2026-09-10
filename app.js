@@ -5,7 +5,9 @@
  * and the source 600×416 table coordinate map. Stage 3.2 adds active
  * target banks, rollovers, lane guides, gates, kickers, and slingshots.
  * Stage 3.3 adds mapped ramps, ramp-hole capture, wormhole sinks, rocket
- * launch feedback, and shooter-lane exit routing.
+ * launch feedback, and shooter-lane exit routing. Stage 3.4 adds
+ * mission/rank progression, target-bank rules, fuel, multiplier state, and
+ * table-specific objective feedback.
  */
 (() => {
   'use strict';
@@ -500,8 +502,337 @@
     player: 1,
     stateTime: 0,
     highScore: 0,
+    rank: 0,
+    rankName: 'Cadet',
     lastMessage: 'PRESS SPACE OR ENTER',
   };
+
+  // Stage 3.4: the original table is driven by nine naval ranks and a
+  // rotating set of named missions. These rules are intentionally data-first
+  // so collision handlers can report events without embedding UI behavior.
+  const RANK_NAMES = Object.freeze([
+    'Cadet',
+    'Ensign',
+    'Lieutenant',
+    'Captain',
+    'Lt Commander',
+    'Commander',
+    'Commodore',
+    'Admiral',
+    'Fleet Admiral',
+  ]);
+  const MULTIPLIER_STEPS = Object.freeze([1, 2, 5, 10]);
+  const MISSION_DEFINITIONS = Object.freeze([
+    { id: 'target-practice', name: 'TARGET PRACTICE', objective: 'HIT THREE TARGETS', event: 'target', required: 3, timeLimit: 0, score: 10000, rankAward: 1 },
+    { id: 'launch-training', name: 'LAUNCH TRAINING', objective: 'RIDE THE LAUNCH RAMP', event: 'ramp', required: 1, timeLimit: 0, score: 20000, rankAward: 1 },
+    { id: 'reentry-training', name: 'RE-ENTRY TRAINING', objective: 'HIT THREE ROLLOVERS', event: 'rollover', required: 3, timeLimit: 30, score: 20000, rankAward: 1 },
+    { id: 'science', name: 'SCIENCE', objective: 'FILL THE FUEL BAR', event: 'fuel', required: 3, timeLimit: 30, score: 30000, rankAward: 1 },
+    { id: 'stray-comet', name: 'STRAY COMET', objective: 'HIT FIVE BUMPERS', event: 'bumper', required: 5, timeLimit: 30, score: 30000, rankAward: 1 },
+    { id: 'black-hole', name: 'BLACK HOLE', objective: 'ENTER A WORMHOLE', event: 'wormhole', required: 1, timeLimit: 0, score: 50000, rankAward: 1 },
+    { id: 'space-radiation', name: 'SPACE RADIATION', objective: 'HIT THREE GATES', event: 'gate', required: 3, timeLimit: 30, score: 50000, rankAward: 1 },
+    { id: 'bug-hunt', name: 'BUG HUNT', objective: 'HIT FIVE TARGETS', event: 'target', required: 5, timeLimit: 30, score: 75000, rankAward: 2 },
+    { id: 'alien-menace', name: 'ALIEN MENACE', objective: 'HIT THREE BUMPERS', event: 'bumper', required: 3, timeLimit: 30, score: 100000, rankAward: 2 },
+    { id: 'rescue-mission', name: 'RESCUE MISSION', objective: 'TRIGGER A KICKER', event: 'kicker', required: 1, timeLimit: 0, score: 125000, rankAward: 2 },
+    { id: 'satellite', name: 'SATELLITE', objective: 'HIT FOUR ROLLOVERS', event: 'rollover', required: 4, timeLimit: 30, score: 150000, rankAward: 2 },
+    { id: 'reconnaissance', name: 'RECONNAISSANCE', objective: 'USE THE WORMHOLE', event: 'wormhole', required: 2, timeLimit: 45, score: 175000, rankAward: 2 },
+    { id: 'doomsday-machine', name: 'DOOMSDAY MACHINE', objective: 'HIT BOTH OUTLANES', event: 'outlane', required: 2, timeLimit: 45, score: 200000, rankAward: 2 },
+    { id: 'cosmic-plague', name: 'COSMIC PLAGUE', objective: 'TRIGGER BOTH FLAGS', event: 'gate', required: 5, timeLimit: 45, score: 250000, rankAward: 2 },
+    { id: 'secret-yellow', name: 'SECRET MISSION: YELLOW', objective: 'ENTER THE YELLOW HOLE', event: 'yellow-wormhole', required: 1, timeLimit: 0, score: 300000, rankAward: 2 },
+    { id: 'time-warp', name: 'TIME WARP', objective: 'TAKE THE SHOOTER EXIT', event: 'shooter', required: 1, timeLimit: 0, score: 350000, rankAward: 2 },
+    { id: 'maelstrom', name: 'MAELSTROM', objective: 'COMPLETE TWO RAMPS', event: 'ramp', required: 2, timeLimit: 45, score: 500000, rankAward: 2 },
+  ]);
+  const TARGET_BANK_LIMITS = Object.freeze({
+    booster: 3,
+    medal: 3,
+    multiplier: 3,
+    fuel: 3,
+    mission: 3,
+    'left-hazard': 3,
+    'right-hazard': 3,
+  });
+  const rules = {
+    rank: 0,
+    rankName: RANK_NAMES[0],
+    rankProgress: 0,
+    rankProgressMax: 3,
+    missionsCompleted: 0,
+    multiplierStage: 0,
+    multiplier: 1,
+    multiplierTimer: 0,
+    multiplierLights: 0,
+    fuel: 0,
+    fuelMax: 12,
+    boosterProgress: 0,
+    medalProgress: 0,
+    missionProgress: 0,
+    leftHazardProgress: 0,
+    rightHazardProgress: 0,
+    missionReady: false,
+    lastEvent: 'READY',
+    promotionFlash: 0,
+    bankProgress: Object.fromEntries(Object.keys(TARGET_BANK_LIMITS).map(key => [key, 0])),
+    bankCompletions: Object.fromEntries(Object.keys(TARGET_BANK_LIMITS).map(key => [key, 0])),
+  };
+  const mission = {
+    phase: 'waiting',
+    index: 0,
+    definition: MISSION_DEFINITIONS[0],
+    name: MISSION_DEFINITIONS[0].name,
+    objective: MISSION_DEFINITIONS[0].objective,
+    progress: 0,
+    required: MISSION_DEFINITIONS[0].required,
+    timeLimit: MISSION_DEFINITIONS[0].timeLimit,
+    timeRemaining: 0,
+    banner: 0,
+    flash: 0,
+    nextDelay: 0,
+    completed: 0,
+    failed: 0,
+    lastEvent: '',
+  };
+
+  function syncRankState() {
+    rules.rankName = RANK_NAMES[rules.rank];
+    game.rank = rules.rank;
+    game.rankName = rules.rankName;
+  }
+
+  function resetRuleState() {
+    rules.rank = 0;
+    rules.rankProgress = 0;
+    rules.missionsCompleted = 0;
+    rules.multiplierStage = 0;
+    rules.multiplier = MULTIPLIER_STEPS[0];
+    rules.multiplierTimer = 0;
+    rules.multiplierLights = 0;
+    rules.fuel = 0;
+    rules.boosterProgress = 0;
+    rules.medalProgress = 0;
+    rules.missionProgress = 0;
+    rules.leftHazardProgress = 0;
+    rules.rightHazardProgress = 0;
+    rules.missionReady = false;
+    rules.lastEvent = 'READY';
+    rules.promotionFlash = 0;
+    for (const key of Object.keys(rules.bankProgress)) rules.bankProgress[key] = 0;
+    for (const key of Object.keys(rules.bankCompletions)) rules.bankCompletions[key] = 0;
+    mission.phase = 'waiting';
+    mission.index = 0;
+    mission.definition = MISSION_DEFINITIONS[0];
+    mission.name = mission.definition.name;
+    mission.objective = mission.definition.objective;
+    mission.progress = 0;
+    mission.required = mission.definition.required;
+    mission.timeLimit = mission.definition.timeLimit;
+    mission.timeRemaining = 0;
+    mission.banner = 0;
+    mission.flash = 0;
+    mission.nextDelay = 0;
+    mission.completed = 0;
+    mission.failed = 0;
+    mission.lastEvent = '';
+    syncRankState();
+  }
+
+  function startMission() {
+    if (game.state !== 'playing' || mission.phase === 'active') return false;
+    const definition = MISSION_DEFINITIONS[mission.index % MISSION_DEFINITIONS.length];
+    mission.definition = definition;
+    mission.name = definition.name;
+    mission.objective = definition.objective;
+    mission.required = definition.required;
+    mission.timeLimit = definition.timeLimit;
+    mission.timeRemaining = definition.timeLimit;
+    mission.progress = 0;
+    mission.phase = 'active';
+    mission.banner = 3.2;
+    mission.flash = 1;
+    mission.nextDelay = 0;
+    mission.lastEvent = '';
+    game.lastMessage = `MISSION: ${definition.name}`;
+    rules.lastEvent = `MISSION ${definition.name}`;
+    markAction(`MISSION ${definition.name}`);
+    return true;
+  }
+
+  function failMission() {
+    if (mission.phase !== 'active') return false;
+    mission.phase = 'cooldown';
+    mission.failed += 1;
+    mission.banner = 2.6;
+    mission.flash = 1;
+    mission.nextDelay = 1.8;
+    mission.lastEvent = 'TIME EXPIRED';
+    game.lastMessage = `${mission.name} FAILED`;
+    rules.lastEvent = `${mission.name} FAILED`;
+    mission.index = (mission.index + 1) % MISSION_DEFINITIONS.length;
+    markAction('MISSION FAILED');
+    return true;
+  }
+
+  function addRankProgress(amount = 1) {
+    if (rules.rank >= RANK_NAMES.length - 1) return false;
+    rules.rankProgress += Math.max(0, Math.floor(amount));
+    let promoted = false;
+    while (rules.rank < RANK_NAMES.length - 1 && rules.rankProgress >= rules.rankProgressMax) {
+      rules.rankProgress -= rules.rankProgressMax;
+      rules.rank += 1;
+      promoted = true;
+    }
+    if (rules.rank >= RANK_NAMES.length - 1) rules.rankProgress = 0;
+    syncRankState();
+    if (promoted) {
+      rules.promotionFlash = 1;
+      mission.flash = 1;
+      mission.banner = Math.max(mission.banner, 4.5);
+      game.lastMessage = `PROMOTION TO ${rules.rankName.toUpperCase()}`;
+      rules.lastEvent = game.lastMessage;
+      markAction(game.lastMessage);
+    }
+    return promoted;
+  }
+
+  function completeMission() {
+    if (mission.phase !== 'active') return false;
+    const completed = mission.definition;
+    mission.phase = 'cooldown';
+    mission.completed += 1;
+    rules.missionsCompleted += 1;
+    mission.banner = 4.2;
+    mission.flash = 1;
+    mission.nextDelay = 2.6;
+    mission.lastEvent = 'COMPLETE';
+    game.lastMessage = `${completed.name} COMPLETE`;
+    rules.lastEvent = game.lastMessage;
+    awardScore(completed.score, 'MISSION');
+    addRankProgress(completed.rankAward);
+    mission.index = (mission.index + 1) % MISSION_DEFINITIONS.length;
+    markAction(`MISSION COMPLETE +${completed.score}`);
+    return true;
+  }
+
+  function missionEvent(event, amount = 1, label = event.toUpperCase()) {
+    if (mission.phase !== 'active') return false;
+    if (mission.definition.event !== event && mission.definition.event !== 'any') return false;
+    mission.progress = Math.min(mission.required, mission.progress + Math.max(0, amount));
+    mission.lastEvent = label;
+    mission.banner = Math.max(mission.banner, 1.1);
+    rules.lastEvent = label;
+    if (mission.progress >= mission.required) return completeMission();
+    return true;
+  }
+
+  function advanceFuel(amount = 1) {
+    const before = rules.fuel;
+    rules.fuel = Math.min(rules.fuelMax, rules.fuel + Math.max(0, amount));
+    if (before < rules.fuelMax && rules.fuel === rules.fuelMax) {
+      awardScore(25000, 'FUEL BAR');
+      game.lastMessage = 'FUEL BAR FULL';
+      rules.lastEvent = 'FUEL BAR FULL';
+    }
+  }
+
+  function applyTargetRule(target) {
+    const bank = target.bank;
+    rules.lastEvent = `${bank.toUpperCase()} TARGET`;
+    missionEvent('target', 1, `${bank.toUpperCase()} TARGET`);
+    missionEvent(bank, 1, `${bank.toUpperCase()} TARGET`);
+
+    if (Object.prototype.hasOwnProperty.call(rules.bankProgress, bank)) {
+      rules.bankProgress[bank] = Math.min(TARGET_BANK_LIMITS[bank], rules.bankProgress[bank] + 1);
+    }
+
+    switch (bank) {
+      case 'booster':
+        rules.boosterProgress = rules.bankProgress.booster;
+        if (rules.bankProgress.booster === TARGET_BANK_LIMITS.booster) {
+          rules.bankProgress.booster = 0;
+          rules.bankCompletions.booster += 1;
+          awardScore(5000, 'BOOSTER BANK');
+        }
+        break;
+      case 'medal':
+        rules.medalProgress = rules.bankProgress.medal;
+        if (rules.bankProgress.medal === TARGET_BANK_LIMITS.medal) {
+          rules.bankProgress.medal = 0;
+          rules.bankCompletions.medal += 1;
+          awardScore(15000, 'MEDAL BANK');
+          addRankProgress(1);
+        }
+        break;
+      case 'multiplier':
+        rules.multiplierLights = rules.bankProgress.multiplier;
+        rules.multiplierStage = Math.min(MULTIPLIER_STEPS.length - 1, rules.bankProgress.multiplier);
+        rules.multiplier = MULTIPLIER_STEPS[rules.multiplierStage];
+        rules.multiplierTimer = 30;
+        break;
+      case 'fuel':
+        rules.fuel = Math.min(rules.fuelMax, rules.fuel + 4);
+        rules.bankProgress.fuel = rules.bankProgress.fuel % TARGET_BANK_LIMITS.fuel;
+        break;
+      case 'mission':
+        rules.missionProgress = rules.bankProgress.mission;
+        if (rules.bankProgress.mission === TARGET_BANK_LIMITS.mission) {
+          rules.missionReady = true;
+          rules.bankCompletions.mission += 1;
+        }
+        break;
+      case 'left-hazard':
+        rules.leftHazardProgress = rules.bankProgress['left-hazard'];
+        if (rules.leftHazardProgress === TARGET_BANK_LIMITS['left-hazard']) rules.bankCompletions['left-hazard'] += 1;
+        break;
+      case 'right-hazard':
+        rules.rightHazardProgress = rules.bankProgress['right-hazard'];
+        if (rules.rightHazardProgress === TARGET_BANK_LIMITS['right-hazard']) rules.bankCompletions['right-hazard'] += 1;
+        break;
+      case 'wormhole':
+        rules.missionReady = true;
+        break;
+      default:
+        break;
+    }
+
+    if (rules.bankCompletions['left-hazard'] > 0 && rules.bankCompletions['right-hazard'] > 0) {
+      awardScore(10000, 'HAZARD BANKS');
+      rules.bankCompletions['left-hazard'] = 0;
+      rules.bankCompletions['right-hazard'] = 0;
+    }
+  }
+
+  function applyRolloverRule(rollover) {
+    const fuelRollover = /^a_roll(179|180|181|182|183|184)$/.test(rollover.id);
+    if (fuelRollover) {
+      advanceFuel(1);
+      missionEvent('fuel', 1, 'FUEL ROLLOVER');
+    }
+    if (rollover.id === 'a_roll9') missionEvent('warp', 1, 'SPACE WARP');
+    missionEvent('rollover', 1, 'ROLLOVER');
+  }
+
+  function updateRuleState(dt) {
+    rules.promotionFlash = Math.max(0, rules.promotionFlash - dt * 2.8);
+    mission.banner = Math.max(0, mission.banner - dt);
+    mission.flash = Math.max(0, mission.flash - dt * 2.8);
+    if (game.state !== 'playing' || input.paused) return;
+
+    if (mission.phase === 'active' && mission.timeRemaining > 0) {
+      mission.timeRemaining = Math.max(0, mission.timeRemaining - dt);
+      if (mission.timeRemaining === 0) failMission();
+    } else if (mission.phase === 'cooldown') {
+      mission.nextDelay = Math.max(0, mission.nextDelay - dt);
+      if (mission.nextDelay === 0) startMission();
+    }
+
+    if (rules.multiplierTimer > 0) {
+      rules.multiplierTimer = Math.max(0, rules.multiplierTimer - dt);
+      if (rules.multiplierTimer === 0 && rules.multiplierStage > 0) {
+        rules.multiplierStage -= 1;
+        rules.multiplierLights = rules.multiplierStage;
+        rules.multiplier = MULTIPLIER_STEPS[rules.multiplierStage];
+        rules.multiplierTimer = rules.multiplierStage > 0 ? 30 : 0;
+      }
+    }
+  }
 
   function readHighScore() {
     try {
@@ -548,6 +879,7 @@
     scoring.combo = 0;
     scoring.comboTimer = 0;
     scoring.popups.length = 0;
+    resetRuleState();
     resetTableFeatures();
     setGameState('ready', 'PRESS SPACE OR ENTER');
     armPlunger();
@@ -826,6 +1158,7 @@
     ball.age = 0;
     ball.trail.length = 0;
     markAction(`LAUNCH ${plunger.lastLaunchSpeed}`);
+    if (mission.phase === 'waiting') startMission();
   }
 
   function updatePlunger(dt) {
@@ -979,12 +1312,14 @@
 
   function awardScore(points, label, x = ball.x, y = ball.y) {
     if (game.state !== 'playing') return;
-    const value = Math.max(0, Math.floor(points));
+    const baseValue = Math.max(0, Math.floor(points));
+    const multiplier = Math.max(1, rules.multiplier || 1);
+    const value = baseValue * multiplier;
     addScore(value);
     scoring.hits += 1;
     scoring.totalPoints += value;
     scoring.lastPoints = value;
-    scoring.lastLabel = `${label} +${value}`;
+    scoring.lastLabel = `${label}${multiplier > 1 ? ` x${multiplier}` : ''} +${value}`;
     scoring.flash = 1;
     scoring.combo = scoring.comboTimer > 0 ? scoring.combo + 1 : 1;
     scoring.comboTimer = 1.5;
@@ -1062,6 +1397,7 @@
     collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'guide' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(15, 'GUIDE', x, y);
+    missionEvent('guide', 1, 'LANE GUIDE');
   }
 
   function recordGateImpact(x, y, nx, ny, gate) {
@@ -1071,6 +1407,7 @@
     collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'gate' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(25, 'GATE', x, y);
+    missionEvent('gate', 1, 'GATE');
   }
 
   function collideBallWithGates() {
@@ -1098,6 +1435,7 @@
     collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'target' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(target.points, target.bank.toUpperCase(), x, y);
+    applyTargetRule(target);
     if (target.id === 'a_targ22' && wormholes.length) {
       wormholeState.destination = (wormholeState.destination + 1) % wormholes.length;
       wormholeState.flash = 1;
@@ -1167,6 +1505,7 @@
         collisionState.impacts.push({ x: rollover.x, y: rollover.y, nx: 0, ny: -1, life: 1, kind: 'rollover' });
         if (collisionState.impacts.length > 16) collisionState.impacts.shift();
         awardScore(rollover.points, 'ROLLOVER', rollover.x, rollover.y);
+        applyRolloverRule(rollover);
         triggered = true;
       }
       rollover.inside = inside;
@@ -1182,6 +1521,7 @@
     collisionState.impacts.push({ x: kicker.x, y: kicker.y, nx: kicker.direction.x, ny: kicker.direction.y, life: 1, kind: 'kicker' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(kicker.points, 'KICKER', kicker.x, kicker.y);
+    missionEvent('kicker', 1, 'KICKER');
   }
 
   function collideBallWithKicker(kicker) {
@@ -1224,6 +1564,7 @@
     collisionState.impacts.push({ x: ball.x, y: ball.y, nx: dx / length, ny: dy / length, life: 1, kind: 'slingshot' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(500, 'SLINGSHOT', ball.x, ball.y);
+    missionEvent('slingshot', 1, 'SLINGSHOT');
   }
 
   function collideBallWithSlingshot(sling) {
@@ -1349,6 +1690,7 @@
     ball.vx = 0;
     ball.vy = 0;
     awardScore(hole.points, 'RAMP HOLE', hole.x, hole.y);
+    missionEvent('hole', 1, 'RAMP HOLE');
     game.lastMessage = 'RAMP HOLE — BALL CAPTURED';
     markAction('RAMP HOLE');
     return true;
@@ -1374,6 +1716,8 @@
     ball.vx = 0;
     ball.vy = 0;
     awardScore(wormhole.points, `${wormhole.label} WORMHOLE`, wormhole.x, wormhole.y);
+    missionEvent('wormhole', 1, `${wormhole.label} WORMHOLE`);
+    missionEvent(`${wormhole.label.toLowerCase()}-wormhole`, 1, `${wormhole.label} WORMHOLE`);
     game.lastMessage = `${wormhole.label} WORMHOLE — CAPTURED`;
     markAction(`${wormhole.label} WORMHOLE`);
     return true;
@@ -1400,6 +1744,7 @@
     ball.previousY = ball.y;
     ball.vx = 0;
     ball.vy = 0;
+    missionEvent('shooter', 1, 'SHOOTER EXIT');
     game.lastMessage = 'SHOOTER EXIT — BALL IN PLAY';
     markAction('SHOOTER EXIT');
     return true;
@@ -1431,9 +1776,11 @@
         if (ramp.kind === 'launch') {
           rocket.flash = 1;
           rocket.launches += 1;
+          missionEvent('ramp', 1, 'LAUNCH RAMP');
           game.lastMessage = 'ROCKET LAUNCH — +5000';
           markAction('ROCKET LAUNCH');
         } else {
+          missionEvent('hyperspace', 1, 'HYPERSPACE RAMP');
           game.lastMessage = 'HYPERSPACE RETURN';
           markAction('HYPERSPACE RETURN');
         }
@@ -1568,6 +1915,7 @@
     collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'bumper' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(bumper.points, 'BUMPER', x, y);
+    missionEvent('bumper', 1, 'BUMPER');
   }
 
   function collideBallWithBumper(bumper) {
@@ -1967,11 +2315,28 @@
 
     ctx.fillStyle = '#26333e';
     ctx.fillRect(p.x + 18, p.y + 171, p.w - 36, 1);
-    text('RANK', p.x + 18, p.y + 192, 9, '#738896', 'left', 400);
-    text(game.state.toUpperCase(), p.x + p.w - 16, p.y + 192, 9,
-      game.state === 'playing' ? '#dfe8ed' : '#d9b75d', 'right');
-    text('MISSION', p.x + 18, p.y + 213, 9, '#738896', 'left', 400);
-    text(game.lastMessage, p.x + 18, p.y + 231, 8, '#d9b75d', 'left', 700);
+    text('RANK', p.x + 18, p.y + 190, 9, '#738896', 'left', 400);
+    text(rules.rankName.toUpperCase(), p.x + p.w - 16, p.y + 190, 8,
+      rules.promotionFlash > 0 ? '#ffe58c' : '#dfe8ed', 'right');
+    text(`${rules.rankProgress}/${rules.rankProgressMax}`, p.x + p.w - 16, p.y + 203, 7, '#7a9aa7', 'right', 400);
+    text('MULTI', p.x + 18, p.y + 211, 9, '#738896', 'left', 400);
+    text(`${rules.multiplier}X`, p.x + p.w - 16, p.y + 211, 10,
+      rules.multiplier > 1 ? '#f0d36b' : '#8aa1aa', 'right');
+    text('MISSION', p.x + 18, p.y + 229, 9, '#738896', 'left', 400);
+    text(mission.phase === 'active' ? mission.name : mission.phase.toUpperCase(), p.x + p.w - 16, p.y + 229, 7,
+      mission.flash > 0 ? '#ffe58c' : '#d9b75d', 'right');
+    text(mission.phase === 'active' ? `${mission.progress}/${mission.required}` : mission.objective,
+      p.x + 18, p.y + 244, 7, '#9dbdc2', 'left', 400);
+
+    text('FUEL', p.x + 18, p.y + 261, 8, '#738896', 'left', 400);
+    for (let i = 0; i < rules.fuelMax; i += 1) {
+      const filled = i < rules.fuel;
+      ctx.fillStyle = filled ? '#e0a34f' : '#273b47';
+      ctx.shadowColor = filled ? '#ffd37a' : 'transparent';
+      ctx.shadowBlur = filled ? 5 : 0;
+      ctx.fillRect(p.x + 51 + i * 11, p.y + 257, 7, 7);
+      ctx.shadowBlur = 0;
+    }
 
     const lights = [
       ['TARGETS', targets.some(target => target.lit || target.flash > 0)],
@@ -1981,15 +2346,15 @@
       ['ROCKET', rocket.launches > 0 || rocket.flash > 0],
     ];
     lights.forEach(([label, on], i) => {
-      const yy = p.y + 247 + i * 17;
+      const yy = p.y + 281 + i * 11;
       ctx.fillStyle = on ? '#dfc35e' : '#273b47';
       ctx.shadowColor = on ? '#ffe98a' : 'transparent';
       ctx.shadowBlur = on ? 7 : 0;
       ctx.beginPath();
-      ctx.arc(p.x + 23, yy, 4, 0, Math.PI * 2);
+      ctx.arc(p.x + 23, yy, 3.2, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
-      text(label, p.x + 34, yy, 8, on ? '#c7d2d8' : '#5d7787', 'left', 400);
+      text(label, p.x + 34, yy, 7, on ? '#c7d2d8' : '#5d7787', 'left', 400);
     });
 
     ctx.fillStyle = '#26333e';
@@ -2530,6 +2895,28 @@
     }
   }
 
+  function drawMissionBanner() {
+    if (mission.banner <= 0 || game.state !== 'playing') return;
+    const x = board.x + 58;
+    const y = board.y + 54;
+    const w = board.w - 116;
+    const h = 31;
+    const active = mission.phase === 'active';
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, mission.banner / 0.55);
+    ctx.fillStyle = 'rgba(1, 8, 15, .82)';
+    ctx.strokeStyle = rules.promotionFlash > 0 ? '#ffe58c' : (active ? '#8bd6dc' : '#c59d4f');
+    ctx.lineWidth = 1.2;
+    roundedRect(x, y, w, h, 4);
+    ctx.fill();
+    ctx.stroke();
+    const headline = rules.promotionFlash > 0 ? `PROMOTED: ${rules.rankName.toUpperCase()}`
+      : (active ? `${mission.name}  ${mission.progress}/${mission.required}` : game.lastMessage);
+    text(headline, x + w / 2, y + 10, 8, rules.promotionFlash > 0 ? '#ffe58c' : '#f0d36b', 'center');
+    text(active ? mission.objective : mission.lastEvent || 'TABLE RULE UPDATE', x + w / 2, y + 22, 7, '#9fd9e0', 'center', 400);
+    ctx.restore();
+  }
+
   function drawDrainStatus() {
     if (game.state !== 'playing' || drain.cooldown <= 0) return;
 
@@ -2583,6 +2970,7 @@
     drawBackdrop(t);
     drawScorePanel();
     drawTable(t);
+    drawMissionBanner();
     drawDrainStatus();
     drawGameStateOverlay();
 
@@ -2603,6 +2991,7 @@
     updatePlunger(dt);
     updateDrain(dt);
     updateScoring(dt);
+    updateRuleState(dt);
     updateBumpers(dt);
     updateTableFeatures(dt);
     updateFlipper(flippers.left, input.left, dt);
@@ -2675,12 +3064,18 @@
   window.spaceCadetWormholeState = wormholeState;
   window.spaceCadetRocket = rocket;
   window.spaceCadetScoring = scoring;
+  window.spaceCadetRules = rules;
+  window.spaceCadetMission = mission;
+  window.spaceCadetRanks = RANK_NAMES;
   if (testMode) {
     window.spaceCadetTest = {
       step(seconds = FIXED_DT) {
         const ticks = Math.max(0, Math.ceil(seconds / FIXED_DT));
         for (let i = 0; i < ticks; i += 1) updateSimulation(FIXED_DT);
       },
+      startMission,
+      missionEvent,
+      addRankProgress,
     };
   }
 
