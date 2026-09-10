@@ -44,8 +44,21 @@
         }, 120);
       }
       const frame = document.getElementById('viewport');
-      if (frame.contentDocument && frame.contentDocument.readyState === 'complete') setTimeout(run, 120);
-      else frame.addEventListener('load', () => setTimeout(run, 120), { once: true });
+      let attempts = 0;
+      function waitForFrame() {
+        const ready = frame.contentDocument
+          && frame.contentDocument.getElementById('game')
+          && frame.contentDocument.getElementById('screen');
+        if (ready) {
+          setTimeout(run, 120);
+        } else if (attempts++ < 80) {
+          setTimeout(waitForFrame, 50);
+        } else {
+          document.body.dataset.smoke = 'fail';
+          document.getElementById('result').textContent = 'FAIL\n\nEmbedded game frame did not load';
+        }
+      }
+      waitForFrame();
     })();
   </script>
 </body>
