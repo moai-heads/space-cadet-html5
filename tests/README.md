@@ -33,3 +33,5 @@ shooter-lane exit routing.
 `controls-smoke.html` covers keyboard bindings, touch zones, pointer drag transfer, pointer release outside the canvas, canvas focus, focus-loss resets, and modified-shortcut protection.
 
 `ui-smoke.html` covers help/escape behavior, pause/resume, mute/unmute, restart, live status updates, high-score preservation, and accessibility metadata.
+
+`presentation-smoke.html` covers fullscreen/mute toolbar controls, fullscreen API exposure, responsive presentation hints, and keyboard shortcut metadata.

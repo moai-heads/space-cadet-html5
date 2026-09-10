@@ -21,6 +21,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 5.3 complete:** added restrained procedural mission start/progress/complete/fail, promotion, multiplier, and fuel cues; `tests/mission-sound-smoke.html` passes; commits `6674917` and `a70958b`.
 - **Stage 6.1 complete:** polished keyboard, mouse, touch, focus-loss, pointer-drag, and canvas focus behavior; added `tests/controls-smoke.html`; commits `c092a96` and `d4491bc`.
 - **Stage 6.2 complete:** added the rendered help overlay, Escape/R restart paths, live accessibility status, keyboard shortcut metadata, and accessible instructions; `tests/ui-smoke.html` passes; commits `d939991` and `6fe7e90`.
+- **Stage 6.3 complete:** added responsive fullscreen presentation, fullscreen API/button/keyboard controls, mute toolbar control, and final control hints; `tests/presentation-smoke.html` passes; commits `e7972dc` and `87df79b`.
 - See `PLAN.md` for the live stage checklist and next steps.
 
 ## Run
@@ -33,7 +34,7 @@ python3 -m http.server 8080
 
 Then visit `http://localhost:8080/`.
 
-To run the browser smoke tests, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, `tests/mission-sound-smoke.html`, `tests/controls-smoke.html`, and `tests/ui-smoke.html` from the same server; each should show `data-smoke="pass"`.
+To run the browser smoke tests, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, `tests/mission-sound-smoke.html`, `tests/controls-smoke.html`, `tests/ui-smoke.html`, and `tests/presentation-smoke.html` from the same server; each should show `data-smoke="pass"`.
 
 ## Controls
 
