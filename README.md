@@ -22,6 +22,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 6.1 complete:** polished keyboard, mouse, touch, focus-loss, pointer-drag, and canvas focus behavior; added `tests/controls-smoke.html`; commits `c092a96` and `d4491bc`.
 - **Stage 6.2 complete:** added the rendered help overlay, Escape/R restart paths, live accessibility status, keyboard shortcut metadata, and accessible instructions; `tests/ui-smoke.html` passes; commits `d939991` and `6fe7e90`.
 - **Stage 6.3 complete:** added responsive fullscreen presentation, fullscreen API/button/keyboard controls, mute toolbar control, and final control hints; `tests/presentation-smoke.html` passes; commits `e7972dc` and `87df79b`.
+- **Stage 7.1 complete:** added the automated Chromium regression runner; the September 10, 2026 run passed all 12 smoke tests. See `REGRESSION.md`; commit `261b516`.
 - See `PLAN.md` for the live stage checklist and next steps.
 
 ## Run
@@ -34,7 +35,7 @@ python3 -m http.server 8080
 
 Then visit `http://localhost:8080/`.
 
-To run the browser smoke tests, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, `tests/mission-sound-smoke.html`, `tests/controls-smoke.html`, `tests/ui-smoke.html`, and `tests/presentation-smoke.html` from the same server; each should show `data-smoke="pass"`.
+To run the full browser regression suite, run `./tests/run-smoke.sh`. To run individual smoke pages, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, `tests/mission-sound-smoke.html`, `tests/controls-smoke.html`, `tests/ui-smoke.html`, and `tests/presentation-smoke.html` from the same server; each should show `data-smoke="pass"`.
 
 ## Controls
 

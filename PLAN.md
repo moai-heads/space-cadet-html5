@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 10, 2026
-**Current position:** Stage 7.1 ready
+**Current position:** Stage 7.2 ready
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -57,7 +57,7 @@ stage changes, and record the validating test or commit for completed work.
 
 ## Stage 7 — Testing, polish, and delivery
 
-- [ ] 7.1 Run automated smoke/regression checks in Chromium.
+- [x] 7.1 Run automated smoke/regression checks in Chromium. Added executable `tests/run-smoke.sh`, resilient embedded-layout polling, syntax validation, local serving, audio autoplay configuration, and fail-fast result parsing. September 10, 2026 run: 12/12 pass. Commit `261b516`; see `REGRESSION.md`.
 - [ ] 7.2 Test launch, flippers, collisions, scoring, missions, drain, respawn, and game over at multiple viewport sizes.
 - [ ] 7.3 Check performance, input latency, audio unlock, and local/offline serving.
 - [ ] 7.4 Produce a clean downloadable archive and final README with controls and known limitations.

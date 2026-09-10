@@ -35,3 +35,5 @@ shooter-lane exit routing.
 `ui-smoke.html` covers help/escape behavior, pause/resume, mute/unmute, restart, live status updates, high-score preservation, and accessibility metadata.
 
 `presentation-smoke.html` covers fullscreen/mute toolbar controls, fullscreen API exposure, responsive presentation hints, and keyboard shortcut metadata.
+
+Run the complete suite from the project root with `./tests/run-smoke.sh`; it starts a temporary local server, runs all 12 Chromium pages, and exits nonzero on failure.
