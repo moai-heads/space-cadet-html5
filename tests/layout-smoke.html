@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet layout smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #result { white-space: pre-wrap; padding: 12px; }
+    iframe { display: block; border: 1px solid #1c5a7d; margin: 12px; }
+  </style>
+</head>
+<body>
+  <iframe id="wide" title="wide layout" width="1200" height="832" src="../index.html"></iframe>
+  <iframe id="mobile" title="mobile layout" width="390" height="844" src="../index.html"></iframe>
+  <pre id="result">RUNNING…</pre>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const ratio = (width, height) => Math.abs(width / height - 600 / 416);
+      const readFrame = (id, expectedWidth) => {
+        const frame = document.getElementById(id);
+        const doc = frame.contentDocument;
+        const canvas = doc.getElementById('game');
+        const screen = doc.getElementById('screen');
+        const rect = canvas.getBoundingClientRect();
+        const screenRect = screen.getBoundingClientRect();
+        check(`${id} keeps the 600x416 aspect`, ratio(rect.width, rect.height) < 0.01);
+        check(`${id} screen and canvas stay aligned`, Math.abs(rect.width - screen.clientWidth) < 1 && Math.abs(rect.height - screen.clientHeight) < 1);
+        check(`${id} retains the logical source canvas`, canvas.width === 600 && canvas.height === 416);
+        check(`${id} stays inside its viewport`, rect.right <= expectedWidth + 1 && rect.bottom <= frame.clientHeight + 1);
+      };
+      function run() {
+        readFrame('wide', 1200);
+        readFrame('mobile', 390);
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+      Promise.all(Array.from(document.querySelectorAll('iframe')).map(frame => new Promise(resolve => {
+        if (frame.contentDocument && frame.contentDocument.readyState === 'complete') resolve();
+        else frame.addEventListener('load', resolve, { once: true });
+      }))).then(() => setTimeout(run, 120));
+    })();
+  </script>
+</body>
+</html>
