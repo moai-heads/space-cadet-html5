@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet sound effects smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const audio = window.spaceCadetAudio;
+      const input = window.spaceCadetInput;
+      const playSound = window.spaceCadetPlaySound;
+      const test = window.spaceCadetTest;
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const fire = code => window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code }));
+      const sounds = ['flipper', 'rail', 'bumper', 'target', 'rollover', 'kicker', 'slingshot', 'ramp', 'rampHole', 'wormhole', 'launch', 'drain', 'nudge'];
+      function run() {
+        fire('Enter');
+        test.step(0.02);
+        check('sound test unlocks audio', audio.unlocked && audio.buses.sfx && audio.voiceCount >= 0);
+
+        const accepted = sounds.map(name => ({ name, played: playSound(name, .7) }));
+        const acceptedNames = accepted.filter(item => item.played).map(item => item.name);
+        check('all gameplay sound events schedule procedurally', acceptedNames.length === sounds.length,
+          `${acceptedNames.length}/${sounds.length} accepted`);
+        check('sound event log records the effects', sounds.every(name => audio.events.includes(name)));
+        check('voices are routed through the mixer', audio.voiceCount > 0);
+
+        fire('KeyM');
+        const mutedEvents = audio.events.length;
+        playSound('bumper');
+        check('muting suppresses new sound events', input.muted && audio.events.length === mutedEvents);
+        fire('KeyM');
+        check('unmuting restores sound scheduling', !input.muted && audio.gainTarget > 0);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
