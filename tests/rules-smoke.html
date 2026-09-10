@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet rules smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const results = [];
+      const game = window.spaceCadetGame;
+      const rules = window.spaceCadetRules;
+      const mission = window.spaceCadetMission;
+      const ball = window.spaceCadetBall;
+      const test = window.spaceCadetTest;
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const step = seconds => test.step(seconds);
+      const placeBall = feature => {
+        ball.active = true;
+        ball.transport = null;
+        ball.shooterExited = false;
+        ball.x = feature.x;
+        ball.y = feature.y;
+        ball.previousX = ball.x;
+        ball.previousY = ball.y;
+        ball.vx = 0;
+        ball.vy = 0;
+        window.spaceCadetPlunger.armed = false;
+      };
+      const hit = feature => {
+        feature.active = true;
+        feature.hitCooldown = 0;
+        placeBall(feature);
+        step(0.02);
+      };
+
+      function run() {
+        check('nine ranks are available', window.spaceCadetRanks.length === 9 && rules.rankName === 'Cadet');
+        check('17 named missions are defined', mission.definition && mission.definition.name === 'TARGET PRACTICE');
+        check('rules start at 1x with empty fuel', rules.multiplier === 1 && rules.fuel === 0);
+
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter' }));
+        test.startMission();
+        check('mission starts in play', game.state === 'playing' && mission.phase === 'active');
+
+        const targets = window.spaceCadetTargets;
+        hit(targets[0]);
+        hit(targets[1]);
+        hit(targets[2]);
+        check('target practice completes after three target hits',
+          mission.completed === 1 && mission.phase === 'cooldown' && rules.missionsCompleted === 1);
+
+        step(3);
+        check('next mission rotates after cooldown', mission.phase === 'active' && mission.name === 'LAUNCH TRAINING');
+        test.missionEvent('ramp', 1, 'TEST RAMP');
+        check('mission event completes launch training', mission.completed === 2 && mission.phase === 'cooldown');
+
+        const multiplierTargets = targets.filter(target => target.bank === 'multiplier');
+        hit(multiplierTargets[0]);
+        check('first multiplier target enables 2x', rules.multiplier === 2 && rules.multiplierLights === 1);
+        hit(multiplierTargets[1]);
+        check('second multiplier target enables 5x', rules.multiplier === 5 && rules.multiplierLights === 2);
+        hit(multiplierTargets[2]);
+        check('third multiplier target enables 10x', rules.multiplier === 10 && rules.multiplierLights === 3);
+
+        const fuelTargets = targets.filter(target => target.bank === 'fuel');
+        fuelTargets.forEach(hit);
+        check('fuel target bank fills the 12-segment bar', rules.fuel === rules.fuelMax);
+
+        const oldRank = rules.rank;
+        test.addRankProgress(3);
+        check('rank progress promotes the player', rules.rank === oldRank + 1 && game.rankName === 'Ensign');
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
