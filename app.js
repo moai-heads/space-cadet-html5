@@ -553,6 +553,10 @@
     context: null,
     master: null,
     buses: { sfx: null, ui: null },
+    noiseBuffer: null,
+    voiceCount: 0,
+    events: [],
+    lastPlayed: Object.create(null),
     error: '',
   };
 
@@ -613,6 +617,141 @@
 
   function toggleMute() {
     setMuted(!input.muted);
+  }
+
+  const SOUND_COOLDOWNS = Object.freeze({
+    flipper: .045,
+    rail: .045,
+    bumper: .075,
+    target: .06,
+    rollover: .08,
+    kicker: .09,
+    slingshot: .08,
+    ramp: .16,
+    rampHole: .18,
+    wormhole: .22,
+    launch: .18,
+    drain: .35,
+    nudge: .12,
+  });
+
+  function soundReady(name) {
+    if (!audio.unlocked || input.muted || !audio.context || !audio.buses.sfx) return false;
+    if (audio.context.state === 'closed') return false;
+    const now = audio.context.currentTime;
+    const previous = audio.lastPlayed[name] ?? -Infinity;
+    const cooldown = SOUND_COOLDOWNS[name] || 0;
+    if (now - previous < cooldown) return false;
+    audio.lastPlayed[name] = now;
+    audio.events.push(name);
+    if (audio.events.length > 48) audio.events.shift();
+    return true;
+  }
+
+  function soundEnvelope(gain, now, peak, duration) {
+    const attack = Math.min(.008, duration * .18);
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(Math.max(.0001, peak), now + attack);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + Math.max(attack + .01, duration));
+  }
+
+  function playTone(startFrequency, endFrequency, duration, peak, type = 'sine', bus = 'sfx', detune = 0) {
+    if (!audio.context || !audio.buses[bus]) return;
+    const now = audio.context.currentTime;
+    const oscillator = audio.context.createOscillator();
+    const gain = audio.context.createGain();
+    oscillator.type = type;
+    oscillator.detune.value = detune;
+    oscillator.frequency.setValueAtTime(Math.max(20, startFrequency), now);
+    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), now + duration);
+    soundEnvelope(gain, now, peak, duration);
+    oscillator.connect(gain);
+    gain.connect(audio.buses[bus]);
+    audio.voiceCount += 1;
+    oscillator.addEventListener('ended', () => { audio.voiceCount = Math.max(0, audio.voiceCount - 1); }, { once: true });
+    oscillator.start(now);
+    oscillator.stop(now + duration + .025);
+  }
+
+  function playNoise(duration, peak, filterType = 'highpass', filterFrequency = 1200, bus = 'sfx') {
+    if (!audio.context || !audio.buses[bus]) return;
+    const now = audio.context.currentTime;
+    if (!audio.noiseBuffer || audio.noiseBuffer.sampleRate !== audio.context.sampleRate) {
+      const length = Math.max(1, Math.floor(audio.context.sampleRate * .5));
+      audio.noiseBuffer = audio.context.createBuffer(1, length, audio.context.sampleRate);
+      const data = audio.noiseBuffer.getChannelData(0);
+      for (let index = 0; index < data.length; index += 1) data[index] = Math.random() * 2 - 1;
+    }
+    const source = audio.context.createBufferSource();
+    const filter = audio.context.createBiquadFilter();
+    const gain = audio.context.createGain();
+    source.buffer = audio.noiseBuffer;
+    filter.type = filterType;
+    filter.frequency.setValueAtTime(filterFrequency, now);
+    soundEnvelope(gain, now, peak, duration);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(audio.buses[bus]);
+    audio.voiceCount += 1;
+    source.addEventListener('ended', () => { audio.voiceCount = Math.max(0, audio.voiceCount - 1); }, { once: true });
+    source.start(now);
+    source.stop(now + duration + .025);
+  }
+
+  function playSound(name, strength = 1) {
+    const amount = Math.max(.2, Math.min(1.6, Number(strength) || 1));
+    if (!soundReady(name)) return false;
+    switch (name) {
+      case 'flipper':
+        playTone(180, 86, .065, .055 * amount, 'square');
+        playNoise(.025, .025 * amount, 'highpass', 2200);
+        break;
+      case 'rail':
+        playNoise(.035, .035 * amount, 'highpass', 1800);
+        break;
+      case 'bumper':
+        playTone(170, 520, .16, .11 * amount, 'sine');
+        playTone(330, 760, .11, .045 * amount, 'triangle', 'sfx', 7);
+        break;
+      case 'target':
+        playTone(480, 780, .10, .075 * amount, 'square');
+        break;
+      case 'rollover':
+        playTone(620, 900, .075, .045 * amount, 'triangle');
+        break;
+      case 'kicker':
+        playTone(120, 330, .16, .10 * amount, 'triangle');
+        playNoise(.04, .025 * amount, 'lowpass', 900);
+        break;
+      case 'slingshot':
+        playTone(230, 90, .10, .07 * amount, 'sawtooth');
+        break;
+      case 'ramp':
+        playTone(260, 640, .32, .075 * amount, 'triangle');
+        break;
+      case 'rampHole':
+        playTone(210, 72, .20, .065 * amount, 'sine');
+        break;
+      case 'wormhole':
+        playTone(150, 920, .38, .07 * amount, 'sawtooth');
+        playNoise(.18, .022 * amount, 'bandpass', 850);
+        break;
+      case 'launch':
+        playTone(120, 460, .45, .09 * amount, 'sawtooth');
+        playNoise(.08, .025 * amount, 'lowpass', 700);
+        break;
+      case 'drain':
+        playTone(420, 74, .42, .085 * amount, 'square');
+        playNoise(.13, .03 * amount, 'lowpass', 520);
+        break;
+      case 'nudge':
+        playTone(92, 54, .08, .045 * amount, 'sine');
+        break;
+      default:
+        return false;
+    }
+    return true;
   }
 
   // Stage 2.6: explicit game lifecycle. Stage 2.9 consumes this state for
@@ -1051,6 +1190,7 @@
     input[action] = pressed;
     if (pressed) {
       if (action === 'plunger' && game.state === 'ready') beginGame();
+      if (!wasPressed && (action === 'left' || action === 'right')) playSound('flipper', .85);
       markAction(`${source} ${action.toUpperCase()}`);
     } else if (action === 'plunger' && wasPressed) {
       launchBall();
@@ -1080,10 +1220,12 @@
     if (event.code === 'KeyA' || event.code === 'ArrowLeft') {
       input.nudgeX = -1;
       input.nudgeUntil = simTime + 0.12;
+      playSound('nudge', .9);
       markAction('NUDGE LEFT');
     } else if (event.code === 'KeyD' || event.code === 'ArrowRight') {
       input.nudgeX = 1;
       input.nudgeUntil = simTime + 0.12;
+      playSound('nudge', .9);
       markAction('NUDGE RIGHT');
     } else if (event.code === 'KeyP') {
       pauseOrResume();
@@ -1320,6 +1462,7 @@
     ball.trail.length = 0;
     drain.cooldown = drain.serviceTime;
     drain.flash = 1;
+    playSound('drain', 1);
     drain.total += 1;
     drain.lastReason = reason;
     game.balls = Math.max(0, game.balls - 1);
@@ -1365,6 +1508,7 @@
     ball.vy = -launchSpeed;
     ball.age = 0;
     ball.trail.length = 0;
+    playSound('launch', .9);
     markAction(`LAUNCH ${plunger.lastLaunchSpeed}`);
     if (mission.phase === 'waiting') startMission();
   }
@@ -1542,6 +1686,7 @@
     collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'wall' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(10, 'RAIL', x, y);
+    playSound('rail', .55);
   }
 
   function collideBallWithSegment(segment, impactRecorder = recordWallImpact) {
@@ -1606,6 +1751,7 @@
     collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'guide' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(15, 'GUIDE', x, y);
+    playSound('rail', .45);
     missionEvent('guide', 1, 'LANE GUIDE');
   }
 
@@ -1616,6 +1762,7 @@
     collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'gate' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(25, 'GATE', x, y);
+    playSound('rail', .55);
     missionEvent('gate', 1, 'GATE');
   }
 
@@ -1644,6 +1791,7 @@
     collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'target' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(target.points, target.bank.toUpperCase(), x, y);
+    playSound('target', .9);
     applyTargetRule(target);
     if (target.id === 'a_targ22' && wormholes.length) {
       wormholeState.destination = (wormholeState.destination + 1) % wormholes.length;
@@ -1714,6 +1862,7 @@
         collisionState.impacts.push({ x: rollover.x, y: rollover.y, nx: 0, ny: -1, life: 1, kind: 'rollover' });
         if (collisionState.impacts.length > 16) collisionState.impacts.shift();
         awardScore(rollover.points, 'ROLLOVER', rollover.x, rollover.y);
+        playSound('rollover', .75);
         applyRolloverRule(rollover);
         triggered = true;
       }
@@ -1730,6 +1879,7 @@
     collisionState.impacts.push({ x: kicker.x, y: kicker.y, nx: kicker.direction.x, ny: kicker.direction.y, life: 1, kind: 'kicker' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(kicker.points, 'KICKER', kicker.x, kicker.y);
+    playSound('kicker', 1);
     missionEvent('kicker', 1, 'KICKER');
   }
 
@@ -1773,6 +1923,7 @@
     collisionState.impacts.push({ x: ball.x, y: ball.y, nx: dx / length, ny: dy / length, life: 1, kind: 'slingshot' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(500, 'SLINGSHOT', ball.x, ball.y);
+    playSound('slingshot', .9);
     missionEvent('slingshot', 1, 'SLINGSHOT');
   }
 
@@ -1899,6 +2050,7 @@
     ball.vx = 0;
     ball.vy = 0;
     awardScore(hole.points, 'RAMP HOLE', hole.x, hole.y);
+    playSound('rampHole', .9);
     missionEvent('hole', 1, 'RAMP HOLE');
     game.lastMessage = 'RAMP HOLE — BALL CAPTURED';
     markAction('RAMP HOLE');
@@ -1925,6 +2077,7 @@
     ball.vx = 0;
     ball.vy = 0;
     awardScore(wormhole.points, `${wormhole.label} WORMHOLE`, wormhole.x, wormhole.y);
+    playSound('wormhole', 1);
     missionEvent('wormhole', 1, `${wormhole.label} WORMHOLE`);
     missionEvent(`${wormhole.label.toLowerCase()}-wormhole`, 1, `${wormhole.label} WORMHOLE`);
     game.lastMessage = `${wormhole.label} WORMHOLE — CAPTURED`;
@@ -1954,6 +2107,7 @@
     ball.vx = 0;
     ball.vy = 0;
     missionEvent('shooter', 1, 'SHOOTER EXIT');
+    playSound('ramp', .7);
     game.lastMessage = 'SHOOTER EXIT — BALL IN PLAY';
     markAction('SHOOTER EXIT');
     return true;
@@ -1986,10 +2140,12 @@
           rocket.flash = 1;
           rocket.launches += 1;
           missionEvent('ramp', 1, 'LAUNCH RAMP');
+          playSound('launch', 1);
           game.lastMessage = 'ROCKET LAUNCH — +5000';
           markAction('ROCKET LAUNCH');
         } else {
           missionEvent('hyperspace', 1, 'HYPERSPACE RAMP');
+          playSound('wormhole', .8);
           game.lastMessage = 'HYPERSPACE RETURN';
           markAction('HYPERSPACE RETURN');
         }
@@ -2124,6 +2280,7 @@
     collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'bumper' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(bumper.points, 'BUMPER', x, y);
+    playSound('bumper', 1);
     missionEvent('bumper', 1, 'BUMPER');
   }
 
@@ -3591,6 +3748,7 @@
   window.spaceCadetMission = mission;
   window.spaceCadetRanks = RANK_NAMES;
   window.spaceCadetAudioUnlock = unlockAudio;
+  window.spaceCadetPlaySound = playSound;
   if (testMode) {
     window.spaceCadetTest = {
       step(seconds = FIXED_DT) {
