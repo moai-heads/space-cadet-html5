@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 10, 2026
-**Current position:** Stage 4.3 ready
+**Current position:** Stage 5.1 ready
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -41,7 +41,7 @@ stage changes, and record the validating test or commit for completed work.
 
 - [x] 4.1 Match the original low-resolution layout and perspective while retaining responsive scaling. Preserved the 600×416 reference aspect ratio with a responsive screen frame, safe-area handling, landscape/portrait sizing, and a layout smoke harness. Commits `5122ee9`, `0745c53`; all six Chromium smoke tests pass.
 - [x] 4.2 Replace diagnostic labels with bitmap-like table art, rails, lamps, chrome, and mission indicators. Added a procedural five-row bitmap font, chrome rail layers, surface panel art, target/rollover lamps, target-bank indicators, and mission/rank badges without importing original assets. Commit `37860ea`; all six Chromium smoke tests pass.
-- [ ] 4.3 Tune palette, glow, CRT treatment, score panel, ball display, and transient hit effects.
+- [x] 4.3 Tune palette, glow, CRT treatment, score panel, ball display, and transient hit effects. Added digital seven-segment score rendering, ball highlights/icons, CRT scanlines/vignette/rolling line, palette-aware bloom, and deterministic transient particle/ring flashes. Commit `3bf8cac`; all six Chromium smoke tests pass.
 
 ## Stage 5 — Sound
 

@@ -15,6 +15,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 3.5 complete:** centralized collision tuning, adjusted rail/bumper/kicker/flipper response, added collision slop and tangential damping, and narrowed the drain funnel; `tests/tuning-smoke.html` passes with the full regression set. Commits `11d7174` and `67ba213`.
 - **Stage 4.1 complete:** corrected the 600×416 reference aspect ratio, added a responsive screen frame with safe-area support, and validated wide/mobile layouts with `tests/layout-smoke.html`; commits `5122ee9` and `0745c53`.
 - **Stage 4.2 complete:** added procedural bitmap decals, chrome rails, textured table panels, lamp banks, and mission/rank indicators without redistributing original artwork; commit `37860ea`.
+- **Stage 4.3 complete:** added digital score segments, ball display polish, CRT scanlines/vignette, palette-aware bloom, and transient particle/ring effects; commit `3bf8cac`.
 - See `PLAN.md` for the live stage checklist and next steps.
 
 ## Run
