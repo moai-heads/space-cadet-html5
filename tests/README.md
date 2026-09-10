@@ -25,3 +25,5 @@ shooter-lane exit routing.
 `layout-smoke.html` validates the responsive screen frame, 600×416 aspect ratio, logical canvas dimensions, viewport containment, and mobile/desktop alignment.
 
 `audio-smoke.html` covers lazy AudioContext creation, master/SFX/UI bus creation, gesture unlock, mute gain targeting, and observable audio state.
+
+`sound-smoke.html` covers the procedural flipper, rail, bumper, target, rollover, kicker, slingshot, ramp, hole, wormhole, launch, drain, and nudge sound event set plus mute suppression.

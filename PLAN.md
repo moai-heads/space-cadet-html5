@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 10, 2026
-**Current position:** Stage 5.2 ready
+**Current position:** Stage 5.3 ready
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -46,7 +46,7 @@ stage changes, and record the validating test or commit for completed work.
 ## Stage 5 — Sound
 
 - [x] 5.1 Add a small Web Audio mixer with mute and unlock handling. Added lazy AudioContext creation, master/compressor/sfx/ui buses, gesture unlock, mute gain targeting, visibility suspend/resume, and audio status HUD. `tests/audio-smoke.html` plus the six prior smoke tests pass. Commits `db130b8`, `e53dee5`.
-- [ ] 5.2 Add procedural flipper, rail, bumper, target, ramp, drain, launch, and nudge sounds.
+- [x] 5.2 Add procedural flipper, rail, bumper, target, ramp, drain, launch, and nudge sounds. Added cooldown-aware oscillator/noise synths and hooks for flippers, rails, bumpers, targets, rollovers, kickers, slingshots, ramps, holes, wormholes, launch, drain, and nudge. `tests/sound-smoke.html` plus the seven prior smoke tests pass. Commits `fbdd28a`, `35cb3ff`.
 - [ ] 5.3 Add restrained mission/rank cues without copying original recordings.
 
 ## Stage 6 — Controls and UI polish
