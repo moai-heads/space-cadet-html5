@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet controls smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416" tabindex="0"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const input = window.spaceCadetInput;
+      const game = window.spaceCadetGame;
+      const canvas = document.getElementById('game');
+      const test = window.spaceCadetTest;
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const key = (type, code, extras = {}) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true, cancelable: true, ...extras }));
+      const pointer = (type, x, y, pointerId = 1) => new PointerEvent(type, {
+        clientX: x,
+        clientY: y,
+        pointerId,
+        pointerType: 'touch',
+        bubbles: true,
+        cancelable: true,
+      });
+      const touchAt = (type, x, y, id = 1, target = canvas) => target.dispatchEvent(pointer(type, x, y, id));
+
+      function run() {
+        check('keyboard canvas is focusable', canvas.tabIndex >= 0);
+        key('keydown', 'Enter');
+        test.step(0.02);
+        check('keyboard starts game', game.state === 'playing');
+
+        key('keydown', 'KeyZ');
+        check('keyboard left flipper press', input.left);
+        key('keyup', 'KeyZ');
+        check('keyboard left flipper release', !input.left);
+
+        const rect = canvas.getBoundingClientRect();
+        const lowerY = rect.bottom - 8;
+        touchAt('pointerdown', rect.left + 40, lowerY, 11);
+        check('touch left zone presses left flipper', input.left && input.pointerAction === 'left' && input.pointerType === 'touch');
+        check('touch focuses canvas', document.activeElement === canvas);
+        touchAt('pointermove', rect.left + 220, lowerY, 11);
+        check('touch drag transfers to right zone', !input.left && input.right && input.pointerAction === 'right');
+        touchAt('pointerup', rect.left + 220, lowerY, 11, window);
+        check('window pointer release clears controls', !input.left && !input.right && input.pointerAction === null);
+
+        touchAt('pointerdown', rect.left + 330, lowerY, 12);
+        check('touch shooter zone presses plunger', input.plunger && input.pointerAction === 'plunger');
+        touchAt('pointerup', rect.left + 330, lowerY, 12, window);
+        check('touch shooter release clears plunger', !input.plunger && input.pointerAction === null);
+
+        key('keydown', 'KeyZ');
+        const resets = input.controlResetCount;
+        window.dispatchEvent(new Event('blur'));
+        check('focus loss releases held controls', !input.left && !input.right && !input.plunger && input.controlResetCount === resets + 1);
+
+        key('keydown', 'KeyZ', { ctrlKey: true });
+        check('modified browser shortcut is not captured', !input.left);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
