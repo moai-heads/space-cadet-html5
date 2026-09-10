@@ -1,8 +1,8 @@
 /*
  * 3D Pinball — Space Cadet (HTML5)
- * Stages 2.1–2.10: canvas boot, fixed loop, input, physics, collisions,
- * flippers, game state, plunger lane, drain/respawn, and scoring hooks. Later
- * stages add table rules and audio.
+ * Stages 2.1–2.10 plus 3.1: canvas boot, fixed loop, input, physics,
+ * collisions, flippers, game state, plunger lane, drain/respawn, scoring hooks,
+ * and the source 600×416 table coordinate map. Later stages add table rules and audio.
  */
 (() => {
   'use strict';
@@ -15,10 +15,106 @@
   const testMode = new URLSearchParams(window.location.search).has('test')
     || Boolean(scriptUrl && scriptUrl.searchParams.has('test'));
 
-  const DESIGN_W = 1100;
-  const DESIGN_H = 760;
-  const board = { x: 330, y: 24, w: 520, h: 712 };
-  const playfield = { x: 26, y: 18, w: 468, h: 676 };
+  // Stage 3.1: use the original 600×416 logical screen as the source
+  // coordinate system. The original table projection occupies the left
+  // 365-ish pixels; score/status art lives in the right-hand strip.
+  const DESIGN_W = 600;
+  const DESIGN_H = 416;
+  const REFERENCE_SCREEN = Object.freeze({ width: 600, height: 416 });
+  const board = { x: 0, y: 0, w: 365, h: 416 };
+  const playfield = { x: 0, y: 0, w: 365, h: 416 };
+  const tableMap = Object.freeze({
+    camera: Object.freeze({
+      row0: [1, 0, 0, 0],
+      row1: [0, -0.913545, 0.406737, 3.791398],
+      row2: [0, -0.406737, -0.913545, 24.675402],
+      projectionDistance: -400.000702,
+      centerX: 183,
+      centerY: 238,
+    }),
+    worldBounds: Object.freeze({ left: -10.391989, right: 10.321410, top: -14.437246, bottom: 15.000000 }),
+    tableBounds: Object.freeze({ left: -8, right: 8, top: -14, bottom: 15 }),
+    plunger: Object.freeze({ x: -7.020939, y: 10.084854 }),
+    flippers: Object.freeze({
+      left: Object.freeze({
+        pivot: [2.488815, 12.063060],
+        restTip: [0.961315, 13.130959],
+        activeTip: [0.961315, 11.006570],
+      }),
+      right: Object.freeze({
+        pivot: [-2.489000, 12.063060],
+        restTip: [-0.961000, 13.130959],
+        activeTip: [-0.961000, 11.006570],
+      }),
+    }),
+    bumpers: Object.freeze([
+      Object.freeze({ id: 'bump1', world: [0.008000, -3.720000], radius: 12, core: '#d94352', ring: '#f0a840' }),
+      Object.freeze({ id: 'bump2', world: [-1.377520, -6.618031], radius: 12, core: '#e3be41', ring: '#f3df8d' }),
+      Object.freeze({ id: 'bump3', world: [1.251057, -5.960478], radius: 12, core: '#4baed2', ring: '#a3e7ec' }),
+      Object.freeze({ id: 'bump4', world: [5.769451, -10.955119], radius: 11, core: '#e3be41', ring: '#f3df8d' }),
+      Object.freeze({ id: 'bump5', world: [5.280001, 4.000000], radius: 10, core: '#d94352', ring: '#f0a840' }),
+      Object.freeze({ id: 'bump6', world: [7.140000, 3.500000], radius: 10, core: '#4baed2', ring: '#a3e7ec' }),
+      Object.freeze({ id: 'bump7', world: [6.451294, 4.907899], radius: 10, core: '#d94352', ring: '#f0a840' }),
+    ]),
+  });
+
+  function projectWorldPoint(x, y, z = 0) {
+    const camera = tableMap.camera;
+    const y1 = camera.row1[1] * y + camera.row1[2] * z + camera.row1[3];
+    const z1 = camera.row2[1] * y + camera.row2[2] * z + camera.row2[3];
+    return {
+      x: x * camera.projectionDistance / z1 + camera.centerX,
+      y: y1 * camera.projectionDistance / z1 + camera.centerY,
+    };
+  }
+
+  function projectWorldPair(pair) {
+    return projectWorldPoint(pair[0], pair[1], pair[2] || 0);
+  }
+
+  function angleBetween(a, b) {
+    return Math.atan2(b.y - a.y, b.x - a.x);
+  }
+
+  const mappedTable = {
+    plunger: projectWorldPair([tableMap.plunger.x, tableMap.plunger.y]),
+    tableCorners: {
+      topLeft: projectWorldPoint(tableMap.tableBounds.right, tableMap.tableBounds.top),
+      topRight: projectWorldPoint(tableMap.tableBounds.left, tableMap.tableBounds.top),
+      bottomRight: projectWorldPoint(tableMap.tableBounds.left, tableMap.tableBounds.bottom),
+      bottomLeft: projectWorldPoint(tableMap.tableBounds.right, tableMap.tableBounds.bottom),
+    },
+    drain: {
+      left: projectWorldPoint(tableMap.worldBounds.right, tableMap.worldBounds.bottom - 0.56),
+      right: projectWorldPoint(tableMap.worldBounds.left, tableMap.worldBounds.bottom - 0.56),
+    },
+    shooterRail: [
+      projectWorldPoint(-6.492623, -5.604876),
+      projectWorldPoint(-6.492159, -0.072489),
+    ],
+    flippers: {},
+    bumpers: [],
+  };
+  for (const side of ['left', 'right']) {
+    const source = tableMap.flippers[side];
+    const pivot = projectWorldPair(source.pivot);
+    const restTip = projectWorldPair(source.restTip);
+    const activeTip = projectWorldPair(source.activeTip);
+    mappedTable.flippers[side] = {
+      pivot,
+      restTip,
+      activeTip,
+      length: Math.hypot(restTip.x - pivot.x, restTip.y - pivot.y),
+      restAngle: angleBetween(pivot, restTip),
+      activeAngle: angleBetween(pivot, activeTip),
+    };
+  }
+  for (const source of tableMap.bumpers) {
+    const point = projectWorldPair(source.world);
+    mappedTable.bumpers.push({ ...source, x: point.x, y: point.y, points: 100, restitution: 1.04, kick: 70, flash: 0, hitCooldown: 0, hits: 0 });
+  }
+  const shooterRail = mappedTable.shooterRail;
+  const tableCorners = mappedTable.tableCorners;
   let cssScale = 1;
 
   // Stage 2.2: simulation time is independent of display refresh rate.
@@ -210,12 +306,13 @@
 
   function pointerActionAt(x, y) {
     const insideBoard = x >= board.x && x <= board.x + board.w && y >= board.y && y <= board.y + board.h;
-    if (!insideBoard || y < board.y + board.h - 155) return null;
-    const rel = (x - board.x) / board.w;
-    if (rel < 0.40) return 'left';
-    if (rel > 0.60 && rel < 0.88) return 'right';
-    if (rel >= 0.88) return 'plunger';
-    return null;
+    if (!insideBoard || y < board.y + board.h - 116) return null;
+    // The original projection puts both flippers and the shooter lane in the
+    // lower-right half of the 365px table image, not across the whole canvas.
+    const localX = x - board.x;
+    if (localX < 175) return 'left';
+    if (localX < 282) return 'right';
+    return 'plunger';
   }
 
   function onPointerDown(event) {
@@ -234,29 +331,28 @@
     input.pointerAction = null;
   }
 
-  // Stage 2.4: physically meaningful ball state. Coordinates are in the
-  // rendered playfield's local design pixels; table collision geometry will
-  // consume the same space in the next stages.
+  // Stage 2.4 + 3.1: the ball now lives in the same projected screen space
+  // as the reference table, so every later component can share one map.
   const ballPhysics = {
     width: playfield.w,
-    height: playfield.h,
-    gravity: 920,
+    height: playfield.h + 34,
+    gravity: 700,
     airDrag: 0.12,
-    maxSpeed: 980,
-    radius: 9,
+    maxSpeed: 620,
+    radius: 5,
   };
   const ballSpawn = {
-    // The right-side shooter lane is the original table's natural starting point.
-    x: 427,
-    y: 630,
+    // The right-side shooter lane is projected from the original plunger point.
+    x: mappedTable.plunger.x,
+    y: mappedTable.plunger.y,
   };
   const ball = {
     x: ballSpawn.x,
     y: ballSpawn.y,
     previousX: ballSpawn.x,
     previousY: ballSpawn.y,
-    vx: -140,
-    vy: -720,
+    vx: -38,
+    vy: -360,
     radius: ballPhysics.radius,
     active: true,
     age: 0,
@@ -270,11 +366,11 @@
     armed: true,
     charge: 0,
     chargeRate: 1.45,
-    launchMin: 590,
-    launchMax: 930,
-    laneX: 427,
-    laneBottom: 630,
-    laneTop: 116,
+    launchMin: 300,
+    launchMax: 520,
+    laneX: mappedTable.plunger.x,
+    laneBottom: mappedTable.plunger.y,
+    laneTop: mappedTable.shooterRail[0].y,
     lastLaunchSpeed: 0,
   };
 
@@ -282,9 +378,11 @@
   // reset. A short service interval makes the lost-ball transition readable
   // and gives the next ball a predictable plunger-ready moment.
   const drain = {
-    y: 674,
-    minX: 88,
-    maxX: 440,
+    // The source drain line projects just below the 416px viewport; this
+    // inset keeps the playable apron visible while preserving its slope.
+    y: playfield.h - 11,
+    minX: 0,
+    maxX: playfield.w,
     cooldown: 0,
     serviceTime: 0.78,
     flash: 0,
@@ -365,7 +463,7 @@
     ball.previousX = ball.x;
     ball.previousY = ball.y;
     // A small leftward bias lets the ball leave the shooter when it reaches the lane exit.
-    ball.vx = -42;
+    ball.vx = -18;
     ball.vy = -launchSpeed;
     ball.age = 0;
     ball.trail.length = 0;
@@ -391,8 +489,8 @@
     ball.y = ballSpawn.y;
     ball.previousX = ball.x;
     ball.previousY = ball.y;
-    ball.vx = activate ? -140 : 0;
-    ball.vy = activate ? -720 : 0;
+    ball.vx = activate ? -38 : 0;
+    ball.vy = activate ? -360 : 0;
     ball.age = 0;
     ball.active = activate;
     ball.resets += 1;
@@ -449,24 +547,20 @@
     }
   }
 
-  // Stage 2.5: reusable segment collision primitives and a first-pass
-  // perimeter matching the visible rails. The open bottom is intentional: it
-  // becomes the drain in the later life/game-state stage.
+  // Stage 3.1: project the source table perimeter into the same 600×416
+  // screen space as the renderer. The bottom remains open so the drain can
+  // own ball loss; a mapped shooter rail retains the source's right-side lane.
   const walls = [
-    { a: { x: 62, y: 14 }, b: { x: 398, y: 14 }, restitution: 0.92 },
-    { a: { x: 62, y: 14 }, b: { x: 30, y: 210 }, restitution: 0.91 },
-    { a: { x: 30, y: 210 }, b: { x: 34, y: 480 }, restitution: 0.91 },
-    { a: { x: 34, y: 480 }, b: { x: 110, y: 652 }, restitution: 0.89 },
-    { a: { x: 398, y: 14 }, b: { x: 436, y: 170 }, restitution: 0.91 },
-    { a: { x: 436, y: 170 }, b: { x: 438, y: 652 }, restitution: 0.91 },
-    { a: { x: 418, y: 614 }, b: { x: 418, y: 116 }, restitution: 0.88 },
+    { id: 'top-rail', a: tableCorners.topLeft, b: tableCorners.topRight, restitution: 0.92 },
+    { id: 'left-rail', a: tableCorners.topLeft, b: tableCorners.bottomLeft, restitution: 0.91 },
+    { id: 'right-rail', a: tableCorners.topRight, b: tableCorners.bottomRight, restitution: 0.91 },
+    { id: 'shooter-rail', a: shooterRail[0], b: shooterRail[1], restitution: 0.88 },
   ];
 
-  const bumpers = [
-    { id: 'red', x: 142, y: 130, radius: 25, restitution: 1.04, kick: 145, points: 100, core: '#db4352', ring: '#f0a840', flash: 0, hitCooldown: 0, hits: 0 },
-    { id: 'gold', x: 234, y: 108, radius: 25, restitution: 1.04, kick: 155, points: 100, core: '#e3be41', ring: '#f3df8d', flash: 0, hitCooldown: 0, hits: 0 },
-    { id: 'blue', x: 326, y: 130, radius: 25, restitution: 1.04, kick: 145, points: 100, core: '#4baed2', ring: '#a3e7ec', flash: 0, hitCooldown: 0, hits: 0 },
-  ];
+  // The seven bumper anchors come from the original a_bump1–a_bump7
+  // records. Their screen positions are deliberately kept as data, so later
+  // rule/visual stages can add targets without inventing a second coordinate map.
+  const bumpers = mappedTable.bumpers;
 
   const collisionState = {
     wallHits: 0,
@@ -608,19 +702,31 @@
     return collided;
   }
 
-  // Stage 2.7: articulated flippers with finite travel, angular velocity,
-  // capsule collision, and a small moving-bat impulse.
+  // Stage 2.7 + 3.1: flipper pivots, travel, and angles are derived from
+  // the source a_flip1/a_flip2 control points after projection.
   const flippers = {
     left: {
-      side: 'left', pivot: { x: 195, y: 632 }, length: 100, radius: 9,
-      restAngle: -2.76, activeAngle: -0.38, angle: -2.76,
-      previousAngle: -2.76, angularVelocity: 0, pressed: false,
+      side: 'left',
+      pivot: mappedTable.flippers.left.pivot,
+      length: mappedTable.flippers.left.length,
+      radius: 5,
+      restAngle: mappedTable.flippers.left.restAngle,
+      activeAngle: mappedTable.flippers.left.activeAngle,
+      angle: mappedTable.flippers.left.restAngle,
+      previousAngle: mappedTable.flippers.left.restAngle,
+      angularVelocity: 0, pressed: false,
       flash: 0, hitCooldown: 0,
     },
     right: {
-      side: 'right', pivot: { x: 273, y: 632 }, length: 100, radius: 9,
-      restAngle: -0.38, activeAngle: -2.76, angle: -0.38,
-      previousAngle: -0.38, angularVelocity: 0, pressed: false,
+      side: 'right',
+      pivot: mappedTable.flippers.right.pivot,
+      length: mappedTable.flippers.right.length,
+      radius: 5,
+      restAngle: mappedTable.flippers.right.restAngle,
+      activeAngle: mappedTable.flippers.right.activeAngle,
+      angle: mappedTable.flippers.right.restAngle,
+      previousAngle: mappedTable.flippers.right.restAngle,
+      angularVelocity: 0, pressed: false,
       flash: 0, hitCooldown: 0,
     },
   };
@@ -644,7 +750,7 @@
     flipper.pressed = pressed;
     flipper.previousAngle = flipper.angle;
     const target = pressed ? flipper.activeAngle : flipper.restAngle;
-    const travelSpeed = pressed ? 25 : 11;
+    const travelSpeed = pressed ? 32 : 16;
     flipper.angle = approach(flipper.angle, target, travelSpeed * dt);
     flipper.angularVelocity = (flipper.angle - flipper.previousAngle) / dt;
     flipper.flash = Math.max(0, flipper.flash - dt * 5);
@@ -729,25 +835,25 @@
     ctx.shadowColor = hot ? '#ffe478' : 'transparent';
     ctx.shadowBlur = hot ? 17 : 0;
     ctx.strokeStyle = '#e9edf0';
-    ctx.lineWidth = 18;
+    ctx.lineWidth = 12;
     ctx.beginPath();
     ctx.moveTo(inner.x + ends.a.x, inner.y + ends.a.y);
     ctx.lineTo(inner.x + ends.b.x, inner.y + ends.b.y);
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = hot ? '#f1c84e' : '#39a4bd';
-    ctx.lineWidth = 11;
+    ctx.lineWidth = 7;
     ctx.beginPath();
     ctx.moveTo(inner.x + ends.a.x, inner.y + ends.a.y);
     ctx.lineTo(inner.x + ends.b.x, inner.y + ends.b.y);
     ctx.stroke();
     ctx.fillStyle = '#dfecef';
     ctx.beginPath();
-    ctx.arc(inner.x + flipper.pivot.x, inner.y + flipper.pivot.y, 10, 0, Math.PI * 2);
+    ctx.arc(inner.x + flipper.pivot.x, inner.y + flipper.pivot.y, 7, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = hot ? '#f1c84e' : '#4a9bb2';
     ctx.beginPath();
-    ctx.arc(inner.x + flipper.pivot.x, inner.y + flipper.pivot.y, 6, 0, Math.PI * 2);
+    ctx.arc(inner.x + flipper.pivot.x, inner.y + flipper.pivot.y, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -824,7 +930,7 @@
   }
 
   function drawBackdrop(t) {
-    const bg = ctx.createRadialGradient(560, 280, 40, 560, 340, 720);
+    const bg = ctx.createRadialGradient(260, 180, 20, 280, 220, 520);
     bg.addColorStop(0, '#0a2e4a');
     bg.addColorStop(.45, '#061525');
     bg.addColorStop(1, '#010308');
@@ -839,7 +945,7 @@
     }
     ctx.globalAlpha = 1;
 
-    const haze = ctx.createRadialGradient(780, 220, 10, 780, 220, 250);
+    const haze = ctx.createRadialGradient(250, 150, 10, 250, 150, 180);
     haze.addColorStop(0, 'rgba(25,143,196,.18)');
     haze.addColorStop(1, 'rgba(25,143,196,0)');
     ctx.fillStyle = haze;
@@ -847,78 +953,74 @@
   }
 
   function drawScorePanel() {
-    const p = { x: 24, y: 24, w: 272, h: 712 };
+    // The source DAT places score1/player/ballcount in the right-hand strip
+    // of the 600×416 screen. Keep that composition instead of the temporary
+    // left-side diagnostic panel used during Stage 2.
+    const p = { x: 386, y: 8, w: 205, h: 400 };
     const panel = ctx.createLinearGradient(p.x, p.y, p.x + p.w, p.y + p.h);
-    panel.addColorStop(0, '#071d31');
-    panel.addColorStop(.52, '#020b17');
-    panel.addColorStop(1, '#0a1726');
+    panel.addColorStop(0, '#172332');
+    panel.addColorStop(.08, '#0b111a');
+    panel.addColorStop(.55, '#03070d');
+    panel.addColorStop(1, '#121b27');
     ctx.fillStyle = panel;
-    roundedRect(p.x, p.y, p.w, p.h, 6);
+    roundedRect(p.x, p.y, p.w, p.h, 3);
     ctx.fill();
-    ctx.strokeStyle = '#2e779c';
+    ctx.strokeStyle = '#566171';
     ctx.lineWidth = 2;
     ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(117,205,237,.25)';
+    ctx.strokeStyle = 'rgba(213, 226, 234, .26)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(p.x + 10, p.y + 10, p.w - 20, p.h - 20);
+    ctx.strokeRect(p.x + 8, p.y + 8, p.w - 16, p.h - 16);
 
-    text('3D PINBALL', p.x + p.w / 2, p.y + 42, 25, '#e8c75b', 'center');
-    text('SPACE CADET', p.x + p.w / 2, p.y + 72, 20, '#84dfec', 'center');
-    ctx.fillStyle = '#3a7890';
-    ctx.fillRect(p.x + 25, p.y + 91, p.w - 50, 2);
+    text('3D PINBALL', p.x + 18, p.y + 24, 14, '#d7dce1');
+    text('SPACE CADET', p.x + 18, p.y + 42, 11, '#8da8ba', 'left', 700);
+    ctx.fillStyle = '#4c6575';
+    ctx.fillRect(p.x + 18, p.y + 55, p.w - 36, 1);
 
-    text('PLAYER 1', p.x + 30, p.y + 132, 13, '#75a7c4');
-    text(formatScore(game.score), p.x + p.w - 28, p.y + 164, 31, '#f5d66c', 'right', 900);
-    text('HIGH SCORE', p.x + 30, p.y + 212, 13, '#75a7c4');
-    text(formatScore(game.highScore), p.x + p.w - 28, p.y + 244, 26, '#d6b85f', 'right', 900);
+    text('PLAYER 1', p.x + 18, p.y + 78, 9, '#9eaab4', 'left', 400);
+    text(formatScore(game.score), p.x + p.w - 16, p.y + 100, 23, '#e0e5e8', 'right', 900);
+    text('HIGH SCORE', p.x + 18, p.y + 130, 9, '#738896', 'left', 400);
+    text(formatScore(game.highScore), p.x + p.w - 16, p.y + 151, 17, '#b7c2c7', 'right', 900);
 
-    text('RANK', p.x + 30, p.y + 302, 13, '#75a7c4');
-    text(game.state.toUpperCase(), p.x + p.w - 28, p.y + 302, 12, game.state === 'playing' ? '#8fe7f0' : '#f2cd70', 'right');
-    text('MISSION STATUS', p.x + 30, p.y + 344, 13, '#75a7c4');
-    text(game.lastMessage, p.x + 30, p.y + 369, 12, '#f2cd5b');
-    text(`LAST ${scoring.lastLabel}`, p.x + 30, p.y + 392, 10, scoring.flash > 0 ? '#f6d873' : '#628da2', 'left', 400);
+    ctx.fillStyle = '#26333e';
+    ctx.fillRect(p.x + 18, p.y + 171, p.w - 36, 1);
+    text('RANK', p.x + 18, p.y + 192, 9, '#738896', 'left', 400);
+    text(game.state.toUpperCase(), p.x + p.w - 16, p.y + 192, 9,
+      game.state === 'playing' ? '#dfe8ed' : '#d9b75d', 'right');
+    text('MISSION', p.x + 18, p.y + 213, 9, '#738896', 'left', 400);
+    text(game.lastMessage, p.x + 18, p.y + 231, 8, '#d9b75d', 'left', 700);
 
-    const lights = ['READY', 'LIGHT', 'RAMP', 'WORM'];
-    lights.forEach((label, i) => {
-      const yy = p.y + 414 + i * 30;
-      ctx.fillStyle = i === 0 ? '#e5c658' : '#203c50';
-      ctx.shadowColor = i === 0 ? '#ffe57b' : 'transparent';
-      ctx.shadowBlur = i === 0 ? 8 : 0;
+    const lights = [
+      ['READY', true], ['LIGHTS', scoring.hits > 0], ['RAMP', false], ['WORM HOLE', false],
+    ];
+    lights.forEach(([label, on], i) => {
+      const yy = p.y + 255 + i * 20;
+      ctx.fillStyle = on ? '#dfc35e' : '#273b47';
+      ctx.shadowColor = on ? '#ffe98a' : 'transparent';
+      ctx.shadowBlur = on ? 7 : 0;
       ctx.beginPath();
-      ctx.arc(p.x + 34, yy, 6, 0, Math.PI * 2);
+      ctx.arc(p.x + 23, yy, 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
-      text(label, p.x + 52, yy, 12, i === 0 ? '#f3db79' : '#547f96');
+      text(label, p.x + 34, yy, 8, on ? '#c7d2d8' : '#5d7787', 'left', 400);
     });
 
-    text('BALL', p.x + 30, p.y + 560, 13, '#75a7c4');
+    ctx.fillStyle = '#26333e';
+    ctx.fillRect(p.x + 18, p.y + 337, p.w - 36, 1);
+    text('BALL', p.x + 18, p.y + 355, 9, '#738896', 'left', 400);
     for (let i = 0; i < 3; i++) {
-      ctx.fillStyle = i < game.balls ? '#f7e8ad' : '#1a3445';
-      ctx.strokeStyle = '#83b7d3';
+      const on = i < game.balls;
+      ctx.fillStyle = on ? '#d9e0e2' : '#233440';
+      ctx.strokeStyle = on ? '#a9bcc5' : '#40515d';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(p.x + 39 + i * 29, p.y + 597, 9, 0, Math.PI * 2);
+      ctx.arc(p.x + 23 + i * 21, p.y + 377, 6, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
-    const online = Math.sin(simTime * 8) > -0.6;
-    ctx.fillStyle = online ? '#e7c75e' : '#315366';
-    ctx.shadowColor = online ? '#ffe781' : 'transparent';
-    ctx.shadowBlur = online ? 8 : 0;
-    ctx.beginPath();
-    ctx.arc(p.x + 32, p.y + 665, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    text('STAGE 2.10 /  SCORING HOOKS', p.x + 43, p.y + 630, 11, '#6699b2', 'left', 400);
-    const nextBall = drain.cooldown > 0 ? `${drain.cooldown.toFixed(1)}s` : (plunger.armed ? 'READY' : 'IN PLAY');
-    text(`DRAIN ${String(drain.total).padStart(2, '0')}  NEXT ${nextBall}`,
-      p.x + 30, p.y + 647, 9, '#5b8ca3', 'left', 400);
-
-    const inputColor = (on) => on ? '#f4d86e' : '#4b7184';
-    text(`L:${input.left ? 'ON' : '--'}  R:${input.right ? 'ON' : '--'}  P:${input.plunger ? 'ON' : '--'}`,
-      p.x + 30, p.y + 667, 10, inputColor(input.left || input.right || input.plunger), 'left', 400);
-    text(`LAST: ${input.lastAction}`, p.x + 30, p.y + 687, 9, '#527e94', 'left', 400);
+    text(`DRAIN ${String(drain.total).padStart(2, '0')}`, p.x + 98, p.y + 374, 8, '#65808f', 'left', 400);
+    text(`NEXT ${drain.cooldown > 0 ? `${drain.cooldown.toFixed(1)}s` : (plunger.armed ? 'READY' : 'IN PLAY')}`,
+      p.x + 98, p.y + 389, 8, '#65808f', 'left', 400);
   }
 
   function drawTable(t) {
@@ -928,210 +1030,227 @@
     const bh = board.h;
     const inner = { x: bx + playfield.x, y: by + playfield.y, w: playfield.w, h: playfield.h };
 
-    // Outer cabinet / bevel.
+    // The original table bitmap is a narrow portrait projection inside the
+    // 600×416 game screen. Keep the right-side score strip outside this clip.
     const cabinet = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
-    cabinet.addColorStop(0, '#7e9aac');
-    cabinet.addColorStop(.06, '#1e4054');
-    cabinet.addColorStop(.5, '#092033');
-    cabinet.addColorStop(.94, '#1f4962');
-    cabinet.addColorStop(1, '#9ab1bd');
+    cabinet.addColorStop(0, '#b8c4c8');
+    cabinet.addColorStop(.035, '#33434d');
+    cabinet.addColorStop(.12, '#101e2a');
+    cabinet.addColorStop(.82, '#172b38');
+    cabinet.addColorStop(1, '#a4b4bb');
     ctx.fillStyle = cabinet;
-    roundedRect(bx, by, bw, bh, 8);
+    roundedRect(bx, by, bw, bh, 4);
     ctx.fill();
-    ctx.strokeStyle = '#0d1825';
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#05090e';
+    ctx.lineWidth = 3;
     ctx.stroke();
 
     const surface = ctx.createLinearGradient(inner.x, inner.y, inner.x + inner.w, inner.y + inner.h);
-    surface.addColorStop(0, '#0f5967');
-    surface.addColorStop(.25, '#0b3b50');
-    surface.addColorStop(.75, '#08273d');
-    surface.addColorStop(1, '#041523');
+    surface.addColorStop(0, '#155b68');
+    surface.addColorStop(.22, '#0b3c50');
+    surface.addColorStop(.62, '#06263b');
+    surface.addColorStop(1, '#020d18');
     ctx.fillStyle = surface;
-    roundedRect(inner.x, inner.y, inner.w, inner.h, 4);
+    roundedRect(inner.x + 4, inner.y + 4, inner.w - 8, inner.h - 8, 3);
     ctx.fill();
 
     ctx.save();
-    roundedRect(inner.x, inner.y, inner.w, inner.h, 4);
+    roundedRect(inner.x + 4, inner.y + 4, inner.w - 8, inner.h - 8, 3);
     ctx.clip();
 
-    // Space dust inside the playfield.
-    for (let i = 0; i < 35; i++) {
-      const sx = inner.x + ((i * 71) % inner.w);
-      const sy = inner.y + ((i * 113) % inner.h);
-      ctx.globalAlpha = .15 + (i % 4) * .04;
-      ctx.fillStyle = i % 3 === 0 ? '#80d4df' : '#8eb4ca';
-      ctx.fillRect(sx, sy, i % 2 ? 1 : 2, i % 2 ? 1 : 2);
+    // Repeated dust/texture gives the flat procedural field the same low-res
+    // visual density as the source bitmap without importing its pixels.
+    for (let i = 0; i < 56; i++) {
+      const sx = 6 + ((i * 47) % 350);
+      const sy = 8 + ((i * 83) % 402);
+      ctx.globalAlpha = .10 + (i % 5) * .025;
+      ctx.fillStyle = i % 3 === 0 ? '#91dbe0' : '#9dbcca';
+      ctx.fillRect(sx, sy, i % 2 ? 1 : 2, i % 2 ? 1 : 1);
     }
     ctx.globalAlpha = 1;
 
-    // A compact approximation of the Space Cadet table silhouette.
-    ctx.strokeStyle = 'rgba(149,229,228,.42)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(inner.x + 62, inner.y + 14);
-    ctx.lineTo(inner.x + 30, inner.y + 210);
-    ctx.lineTo(inner.x + 34, inner.y + 480);
-    ctx.lineTo(inner.x + 110, inner.y + inner.h - 24);
-    ctx.moveTo(inner.x + inner.w - 70, inner.y + 14);
-    ctx.lineTo(inner.x + inner.w - 32, inner.y + 170);
-    ctx.lineTo(inner.x + inner.w - 30, inner.y + inner.h - 24);
-    ctx.stroke();
-
-    // Upper logo and central lane.
-    ctx.strokeStyle = '#f4c54e';
+    // Projected outer rails from the source table group's [-8, 8] × [-14, 15]
+    // rectangle. The lower corners intentionally continue below the viewport.
+    ctx.strokeStyle = 'rgba(195, 227, 228, .70)';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(inner.x + 110, inner.y + 30);
-    ctx.quadraticCurveTo(inner.x + 230, inner.y + 2, inner.x + 345, inner.y + 40);
+    ctx.moveTo(tableCorners.topLeft.x, tableCorners.topLeft.y);
+    ctx.lineTo(tableCorners.topRight.x, tableCorners.topRight.y);
+    ctx.lineTo(tableCorners.bottomRight.x, tableCorners.bottomRight.y);
+    ctx.lineTo(tableCorners.bottomLeft.x, tableCorners.bottomLeft.y);
     ctx.stroke();
-    text('SPACE CADET', inner.x + inner.w / 2, inner.y + 30, 16, '#e3c45a', 'center');
-
-    ctx.strokeStyle = 'rgba(99,197,214,.8)';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(inner.x + inner.w / 2, inner.y + 52);
-    ctx.lineTo(inner.x + inner.w / 2, inner.y + 188);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(236,197,75,.8)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(inner.x + inner.w / 2 - 28, inner.y + 52);
-    ctx.lineTo(inner.x + inner.w / 2 - 28, inner.y + 188);
-    ctx.moveTo(inner.x + inner.w / 2 + 28, inner.y + 52);
-    ctx.lineTo(inner.x + inner.w / 2 + 28, inner.y + 188);
-    ctx.stroke();
-
-    // Target bank.
-    const targetY = inner.y + 260;
-    ['S', 'P', 'A', 'C', 'E'].forEach((letter, i) => {
-      const x = inner.x + 78 + i * 49;
-      ctx.fillStyle = i === 0 ? '#e3bd52' : '#234b5d';
-      ctx.strokeStyle = '#8ed8d9';
-      ctx.lineWidth = 1.5;
-      roundedRect(x - 15, targetY - 11, 30, 22, 3);
-      ctx.fill();
-      ctx.stroke();
-      text(letter, x, targetY + 1, 13, i === 0 ? '#12263a' : '#74b9c5', 'center');
-    });
-
-    // Bumper cluster.
-    for (const bumper of bumpers) drawBumperGraphic(bumper, inner);
-    ctx.strokeStyle = 'rgba(255,245,182,.72)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(inner.x + 234, inner.y + 108, 36, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Left ramp and right launch lane.
-    ctx.strokeStyle = '#a9c7cc';
+    ctx.strokeStyle = 'rgba(18, 93, 108, .95)';
     ctx.lineWidth = 7;
     ctx.beginPath();
-    ctx.moveTo(inner.x + 54, inner.y + 300);
-    ctx.bezierCurveTo(inner.x + 14, inner.y + 230, inner.x + 74, inner.y + 90, inner.x + 178, inner.y + 70);
+    ctx.moveTo(tableCorners.topLeft.x + 3, tableCorners.topLeft.y + 2);
+    ctx.lineTo(tableCorners.topRight.x - 3, tableCorners.topRight.y + 2);
+    ctx.lineTo(tableCorners.bottomRight.x - 3, tableCorners.bottomRight.y - 4);
+    ctx.moveTo(tableCorners.topLeft.x + 3, tableCorners.topLeft.y + 2);
+    ctx.lineTo(tableCorners.bottomLeft.x + 3, tableCorners.bottomLeft.y - 4);
     ctx.stroke();
-    ctx.strokeStyle = '#2e6174';
-    ctx.lineWidth = 3;
+
+    // Header mark and center lane. These are screen-space accents anchored to
+    // the same projection center used by the original camera_info record.
+    ctx.strokeStyle = '#dec45e';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(112, 31);
+    ctx.quadraticCurveTo(183, 8, 252, 31);
     ctx.stroke();
-    ctx.strokeStyle = '#c3dce0';
+    text('SPACE CADET', 183, 28, 13, '#e5ca66', 'center');
+    ctx.strokeStyle = 'rgba(115, 218, 225, .72)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(inner.x + inner.w - 62, inner.y + 120);
-    ctx.lineTo(inner.x + inner.w - 62, inner.y + inner.h - 54);
+    ctx.moveTo(183, 42);
+    ctx.lineTo(183, 83);
     ctx.stroke();
-    ctx.strokeStyle = '#52879a';
-    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(229, 194, 78, .66)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(inner.x + inner.w - 48, inner.y + 116);
-    ctx.lineTo(inner.x + inner.w - 48, inner.y + inner.h - 52);
+    ctx.moveTo(174, 42);
+    ctx.lineTo(174, 83);
+    ctx.moveTo(192, 42);
+    ctx.lineTo(192, 83);
     ctx.stroke();
-    text('LAUNCH', inner.x + inner.w - 55, inner.y + 88, 10, '#e5c15a', 'center');
 
-    // Shooter plunger, spring, and charge indicator.
-    const plungerX = inner.x + plunger.laneX;
-    const plungerBaseY = inner.y + plunger.laneBottom + 18;
-    const plungerHandleY = plungerBaseY + plunger.charge * 14;
-    ctx.strokeStyle = '#b8d5db';
+    // The first three popup targets are mapped from a_targ1–a_targ3.
+    const topTargetYs = [0.965, 1.666, 2.365];
+    topTargetYs.forEach((worldY, index) => {
+      const a = projectWorldPoint(-4.24204, worldY);
+      const b = projectWorldPoint(-4.157959, worldY + .516);
+      const x = (a.x + b.x) / 2;
+      const y = (a.y + b.y) / 2;
+      ctx.fillStyle = index === 0 ? '#d8bb58' : '#163d4d';
+      ctx.strokeStyle = '#79bcc5';
+      ctx.lineWidth = 1;
+      roundedRect(x - 5, y - 5, 10, 10, 1.5);
+      ctx.fill();
+      ctx.stroke();
+      text(String(index + 1), x, y + .5, 7, index === 0 ? '#14253a' : '#9ad7d7', 'center');
+    });
+
+    // Inner guide rails are simple screen projections of the source's long
+    // one-way segments; Stage 3.2 will turn these into active gates/guides.
+    const guidePaths = [
+      [[-6.26309, 3.554958], [-6.26309, 5.064444]],
+      [[-5.229421, 3.916008], [-5.2351, 5.364433]],
+      [[2.625341, -10.714686], [3.324727, -11.956454]],
+      [[-3.324988, -11.956454], [-2.625601, -10.714686]],
+      [[6.408451, -.973824], [7.663972, -4.499189]],
+    ];
+    ctx.strokeStyle = 'rgba(174, 213, 213, .68)';
+    ctx.lineWidth = 2;
+    for (const path of guidePaths) {
+      const a = projectWorldPair(path[0]);
+      const b = projectWorldPair(path[1]);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+
+    // A pair of curved ramp outlines reserves the source ramp lanes visually.
+    ctx.strokeStyle = '#b7d1d1';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(118, 294);
+    ctx.bezierCurveTo(85, 242, 74, 174, 107, 95);
+    ctx.bezierCurveTo(126, 54, 153, 42, 176, 43);
+    ctx.stroke();
+    ctx.strokeStyle = '#2b7080';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(118, 294);
+    ctx.bezierCurveTo(85, 242, 74, 174, 107, 95);
+    ctx.bezierCurveTo(126, 54, 153, 42, 176, 43);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(182, 216, 217, .74)';
     ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(245, 284);
+    ctx.bezierCurveTo(268, 240, 288, 197, 289, 144);
+    ctx.lineTo(289, 104);
+    ctx.stroke();
+
+    // Shooter lane, mapped plunger, spring, and a short launch indicator.
+    const plungerX = plunger.laneX;
+    ctx.strokeStyle = '#c9dadd';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(plungerX + 12, 104);
+    ctx.lineTo(plungerX + 12, 350);
+    ctx.stroke();
+    ctx.strokeStyle = '#3b8090';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(plungerX + 19, 104);
+    ctx.lineTo(plungerX + 19, 350);
+    ctx.stroke();
+    text('LAUNCH', plungerX + 14, 93, 7, '#dfc560', 'center');
+
+    const plungerBaseY = plunger.laneBottom + 14;
+    const plungerHandleY = plungerBaseY + plunger.charge * 7;
+    ctx.strokeStyle = '#c4d9da';
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(plungerX, plungerBaseY);
     ctx.lineTo(plungerX, plungerHandleY);
     ctx.stroke();
-    ctx.strokeStyle = plunger.armed && input.plunger ? '#f4cd5c' : '#4f8798';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = plunger.armed && input.plunger ? '#f1d36b' : '#638f9b';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let i = 0; i < 7; i++) {
-      const yy = plungerBaseY - i * 5 + plunger.charge * 10;
-      const xx = plungerX + (i % 2 ? 5 : -5);
+    for (let i = 0; i < 6; i++) {
+      const yy = plungerBaseY - i * 3.2 + plunger.charge * 5;
+      const xx = plungerX + (i % 2 ? 3 : -3);
       if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
     }
     ctx.stroke();
-    ctx.fillStyle = plunger.armed && input.plunger ? '#f4cd5c' : '#547f8c';
-    ctx.fillRect(plungerX - 8, plungerHandleY - 2, 16, 4);
+    ctx.fillStyle = plunger.armed && input.plunger ? '#f1d36b' : '#638f9b';
+    ctx.fillRect(plungerX - 5, plungerHandleY - 1, 10, 2);
 
-    // Slingshots / lower playfield geometry.
-    ctx.fillStyle = 'rgba(189,47,94,.48)';
-    ctx.strokeStyle = '#d9779c';
-    ctx.lineWidth = 2;
+    // The source has seven compact bumpers, with a larger three-bumper cluster
+    // near the top and four smaller field bumpers below/left.
+    for (const bumper of bumpers) drawBumperGraphic(bumper, inner);
+
+    // Lower slingshots and the open apron are anchored to the mapped flippers.
+    ctx.fillStyle = 'rgba(169, 43, 92, .52)';
+    ctx.strokeStyle = '#d36a91';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(inner.x + 60, inner.y + 512);
-    ctx.lineTo(inner.x + 178, inner.y + 560);
-    ctx.lineTo(inner.x + 76, inner.y + 604);
+    ctx.moveTo(60, 326);
+    ctx.lineTo(116, 350);
+    ctx.lineTo(79, 381);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(inner.x + inner.w - 85, inner.y + 512);
-    ctx.lineTo(inner.x + inner.w - 203, inner.y + 560);
-    ctx.lineTo(inner.x + inner.w - 96, inner.y + 604);
+    ctx.moveTo(258, 350);
+    ctx.lineTo(314, 326);
+    ctx.lineTo(295, 381);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // Lower lanes and flippers.
-    const drainLeft = inner.x + drain.minX + 12;
-    const drainRight = inner.x + drain.maxX - 12;
-    const drainY = inner.y + drain.y;
-    ctx.save();
-    ctx.globalAlpha = 0.82 + drain.flash * 0.18;
-    ctx.fillStyle = '#01070d';
+    const drainLeft = 23;
+    const drainRight = 344;
+    const drainY = drain.y;
+    ctx.fillStyle = 'rgba(0, 4, 9, .90)';
     ctx.beginPath();
-    ctx.moveTo(drainLeft, drainY - 4);
-    ctx.lineTo(drainRight, drainY - 4);
-    ctx.lineTo(drainRight - 15, drainY + 18);
-    ctx.lineTo(drainLeft + 15, drainY + 18);
+    ctx.moveTo(drainLeft, drainY - 3);
+    ctx.lineTo(drainRight, drainY - 3);
+    ctx.lineTo(drainRight - 12, drainY + 15);
+    ctx.lineTo(drainLeft + 12, drainY + 15);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = drain.flash > 0 ? '#f2cf63' : '#456b7b';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = drain.flash > 0 ? '#f2cf63' : '#466b79';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
-    ctx.globalAlpha = 1;
-    text('DRAIN', (drainLeft + drainRight) / 2, drainY + 8, 9, drain.flash > 0 ? '#f2cf63' : '#6f98a6', 'center');
-    ctx.restore();
+    text('DRAIN', (drainLeft + drainRight) / 2, drainY + 7, 7, drain.flash > 0 ? '#f2cf63' : '#6f98a6', 'center');
 
-    ctx.strokeStyle = '#d1dde0';
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(inner.x + 157, inner.y + 616);
-    ctx.lineTo(inner.x + 50, inner.y + 663);
-    ctx.moveTo(inner.x + inner.w - 157, inner.y + 616);
-    ctx.lineTo(inner.x + inner.w - 50, inner.y + 663);
-    ctx.stroke();
-    ctx.strokeStyle = '#563f88';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(inner.x + 157, inner.y + 616);
-    ctx.lineTo(inner.x + 50, inner.y + 663);
-    ctx.moveTo(inner.x + inner.w - 157, inner.y + 616);
-    ctx.lineTo(inner.x + inner.w - 50, inner.y + 663);
-    ctx.stroke();
-
-    // Articulated flippers are driven by the same state used by collision.
     drawFlipperGraphic(flippers.left, inner);
     drawFlipperGraphic(flippers.right, inner);
 
-    // Brief electric sparks on rail contacts help verify collision placement.
+    // Contact sparks and score callouts are kept inside the source bitmap clip.
     for (const impact of collisionState.impacts) {
       const ix = inner.x + impact.x;
       const iy = inner.y + impact.y;
@@ -1139,39 +1258,38 @@
       ctx.globalAlpha = Math.max(0, impact.life);
       ctx.strokeStyle = '#ffe88c';
       ctx.shadowColor = '#fff1a8';
-      ctx.shadowBlur = 8;
-      ctx.lineWidth = 1.5;
+      ctx.shadowBlur = 6;
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(ix, iy);
-      ctx.lineTo(ix + impact.nx * 8, iy + impact.ny * 8);
-      ctx.moveTo(ix - impact.ny * 5, iy + impact.nx * 5);
-      ctx.lineTo(ix + impact.ny * 5, iy - impact.nx * 5);
+      ctx.lineTo(ix + impact.nx * 6, iy + impact.ny * 6);
+      ctx.moveTo(ix - impact.ny * 4, iy + impact.nx * 4);
+      ctx.lineTo(ix + impact.ny * 4, iy - impact.nx * 4);
       ctx.stroke();
       ctx.restore();
     }
-
-    // Score popups are intentionally small, like the original bitmap callouts.
     for (const popup of scoring.popups) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, popup.life);
-      text(`+${popup.points}`, inner.x + popup.x, inner.y + popup.y, 12, '#ffe88c', 'center');
+      text(`+${popup.points}`, inner.x + popup.x, inner.y + popup.y, 8, '#ffe88c', 'center');
       ctx.restore();
     }
 
-    // Dynamic ball + short motion trail (physics-stage diagnostic).
+    // Dynamic ball and a short trail, in the same screen coordinates as the
+    // mapped colliders above.
     const ballX = inner.x + ball.x;
     const ballY = inner.y + ball.y;
     for (let i = 0; i < ball.trail.length; i++) {
       const point = ball.trail[i];
-      const alpha = (i + 1) / ball.trail.length * 0.18 * point.life;
+      const alpha = (i + 1) / ball.trail.length * 0.20 * point.life;
       ctx.fillStyle = `rgba(190, 239, 255, ${alpha.toFixed(3)})`;
       ctx.beginPath();
-      ctx.arc(inner.x + point.x, inner.y + point.y, 3 + i * 0.25, 0, Math.PI * 2);
+      ctx.arc(inner.x + point.x, inner.y + point.y, 1.7 + i * .15, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.shadowColor = '#e4f8ff';
-    ctx.shadowBlur = 10;
-    const ballGradient = ctx.createRadialGradient(ballX - 3, ballY - 4, 1, ballX, ballY, ball.radius);
+    ctx.shadowBlur = 8;
+    const ballGradient = ctx.createRadialGradient(ballX - 1.5, ballY - 2, .5, ballX, ballY, ball.radius);
     ballGradient.addColorStop(0, '#ffffff');
     ballGradient.addColorStop(.45, '#d7e6e8');
     ballGradient.addColorStop(1, '#657e88');
@@ -1183,12 +1301,10 @@
 
     ctx.restore();
 
-    // Rails and Stage 2.1 label.
-    ctx.strokeStyle = '#bbd5dc';
-    ctx.lineWidth = 3;
-    roundedRect(inner.x, inner.y, inner.w, inner.h, 4);
+    ctx.strokeStyle = '#d2e1e3';
+    ctx.lineWidth = 1.5;
+    roundedRect(inner.x + 4, inner.y + 4, inner.w - 8, inner.h - 8, 3);
     ctx.stroke();
-    text('SCORING HOOKS / REFERENCE PASS', bx + bw / 2, by + bh - 8, 11, '#8dbbc7', 'center', 400);
   }
 
   function updateScoring(dt) {
@@ -1324,6 +1440,11 @@
   canvas.addEventListener('contextmenu', event => event.preventDefault());
 
   // Exposed only for later stages and quick browser smoke tests.
+  window.spaceCadetTableCoordinates = {
+    screen: REFERENCE_SCREEN,
+    source: tableMap,
+    mapped: mappedTable,
+  };
   window.spaceCadetInput = input;
   window.spaceCadetGame = game;
   window.spaceCadetBall = ball;

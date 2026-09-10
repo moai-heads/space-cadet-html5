@@ -8,6 +8,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 2.10 complete:** centralized score events with rail, flipper, and bumper awards plus score popups.
 - **Stage 2.11 complete:** deterministic Chromium smoke harness passes keyboard controls, pause/mute/help, nudge expiry, drain, and respawn.
 - **Stage 2.12 complete:** playable-core checkpoint packaged and validated; see `CHECKPOINT-2.12.md`.
+- **Stage 3.1 complete:** migrated to the original 600×416 screen coordinate system using the source camera projection; table rails, shooter lane, seven bumper anchors, flippers, and right-side score strip now share the reference map.
 - See `PLAN.md` for the live stage checklist and next steps.
 
 ## Run

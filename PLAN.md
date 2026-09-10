@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 10, 2026
-**Current position:** Stage 3.1 in progress
+**Current position:** Stage 3.2 ready
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -31,7 +31,7 @@ stage changes, and record the validating test or commit for completed work.
 
 ## Stage 3 — Table recreation
 
-- [-] 3.1 Migrate the temporary geometry to the reference table coordinate map.
+- [x] 3.1 Migrate the temporary geometry to the reference table coordinate map. Added the source 600×416 camera projection, right-side score strip, mapped table rails, shooter lane, seven bumpers, and flipper anchors. Browser smoke test passes the map assertions. Commit recorded below.
 - [ ] 3.2 Add target banks, rollovers, lane guides, gates, kickers, and slingshots.
 - [ ] 3.3 Add ramps, ramp holes, rocket/wormhole behavior, and shooter-lane exit routing.
 - [ ] 3.4 Add mission/rank progression and table-specific rule state.

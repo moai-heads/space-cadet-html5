@@ -11,7 +11,7 @@
 
 ## Visual target
 
-- Landscape Windows-era presentation: dark blue/black chrome frame, score/status panel on the left, compact table on the right.
+- Landscape Windows-era presentation: dark blue/black chrome frame, compact portrait table projection on the left, score/status strip on the right.
 - Blue/teal space-table surface with warm yellow/orange highlights and red/blue bumper lamps.
 - Bright metallic rails, beveled components, small bitmap-like labels, and a slightly compressed 3D perspective.
 - Low-resolution arcade readability rather than modern photorealism; add subtle scanlines/glow without making text hard to read.
@@ -24,11 +24,24 @@
 
 ## Implementation decisions from this pass
 
-- Use a Canvas 2D renderer with a logical 600×416 table coordinate system, then scale responsively to the browser viewport.
-- Keep the scoreboard separate from the playfield so it resembles the original desktop layout.
+- Use a Canvas 2D renderer with the original 600×416 logical screen coordinate system, then scale responsively to the browser viewport.
+- Keep the right-side scoreboard separate from the table clip so it resembles the original desktop layout.
 - Draw the table and components procedurally in JavaScript; no external runtime dependencies.
 - Store reference material and notes outside the final runtime bundle unless explicitly needed.
 
+## Stage 3.1 geometry map (complete)
+
+The source port exposes the original `camera_info` matrix and recenters the
+playfield at `(183, 238)` in the 600×416 view. The HTML5 implementation now
+uses that same projection for the table bounds, plunger anchor, flipper control
+points, shooter rail, and all seven `a_bump1`–`a_bump7` bumper anchors. The
+source table rectangle is `[-8, 8] × [-14, 15]`; its projected lower corners
+continue below the 416px viewport, matching the clipped portrait table bitmap.
+
+The score strip remains outside the 365px table clip on the right, matching the
+source resource positions for `score1`, `player_number1`, and `ballcount1`.
+
 ## Next stage
 
-Implement the playable core: game state, fixed-step physics, collision primitives, flippers, plunger, drain/respawn, keyboard/touch input, and a minimal score loop. 
+Implement active target banks, rollovers, lane guides, gates, kickers, and
+slingshot rule objects on top of the shared reference map.
