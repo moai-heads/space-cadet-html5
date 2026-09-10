@@ -14,6 +14,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 3.4 complete:** added nine ranks, 17 named missions, mission timers/completion, promotion progress, multiplier steps (1x/2x/5x/10x), fuel bar, target-bank rules, mission banner, and `tests/rules-smoke.html`; commits `570e091` and `63c47ef`.
 - **Stage 3.5 complete:** centralized collision tuning, adjusted rail/bumper/kicker/flipper response, added collision slop and tangential damping, and narrowed the drain funnel; `tests/tuning-smoke.html` passes with the full regression set. Commits `11d7174` and `67ba213`.
 - **Stage 4.1 complete:** corrected the 600×416 reference aspect ratio, added a responsive screen frame with safe-area support, and validated wide/mobile layouts with `tests/layout-smoke.html`; commits `5122ee9` and `0745c53`.
+- **Stage 4.2 complete:** added procedural bitmap decals, chrome rails, textured table panels, lamp banks, and mission/rank indicators without redistributing original artwork; commit `37860ea`.
 - See `PLAN.md` for the live stage checklist and next steps.
 
 ## Run
