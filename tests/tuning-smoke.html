@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet physics tuning smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const results = [];
+      const tuning = window.spaceCadetTuning;
+      const physics = window.spaceCadetPhysics;
+      const drain = window.spaceCadetDrain;
+      const ball = window.spaceCadetBall;
+      const game = window.spaceCadetGame;
+      const test = window.spaceCadetTest;
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const step = seconds => test.step(seconds);
+      const placeBall = (x, y) => {
+        ball.active = true;
+        ball.transport = null;
+        ball.shooterExited = false;
+        ball.x = x;
+        ball.y = y;
+        ball.previousX = x;
+        ball.previousY = y;
+        ball.vx = 0;
+        ball.vy = 0;
+        window.spaceCadetPlunger.armed = false;
+      };
+
+      function run() {
+        check('physics uses the shared ball radius', physics.radius === tuning.ballRadius && tuning.ballRadius === 5);
+        check('gravity, drag, and speed cap are calibrated',
+          physics.gravity === tuning.gravity && physics.airDrag === tuning.airDrag
+          && physics.maxSpeed === tuning.maxSpeed && physics.maxSpeed < 620);
+        check('bumper/kicker/slingshot kicks use tuned values',
+          window.spaceCadetBumpers.every(bumper => bumper.kick === tuning.bumperKick)
+          && window.spaceCadetKickers.every(kicker => kicker.kick === tuning.kickerKick)
+          && window.spaceCadetSlingshots.every(sling => sling.kick === tuning.slingKick));
+        check('rails and gates use bounded restitution',
+          window.spaceCadetWalls.every(wall => wall.restitution <= 1)
+          && window.spaceCadetGates.every(gate => gate.restitution <= 1));
+        check('drain has a narrowed, inset funnel',
+          drain.minX === tuning.drainMinX && drain.maxX === tuning.drainMaxX
+          && drain.funnelInset > 0 && drain.funnelDepth > 0);
+
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter' }));
+        step(0.02);
+        check('tuning test starts a game', game.state === 'playing');
+
+        const before = drain.total;
+        placeBall((drain.minX + drain.maxX) / 2,
+          drain.y - ball.radius - drain.captureDepth - 0.5);
+        step(1 / 120);
+        check('ball above capture depth is not drained', drain.total === before);
+
+        placeBall((drain.minX + drain.maxX) / 2, drain.y + drain.captureDepth + 1);
+        step(0.02);
+        check('ball crossing the tuned drain opening is consumed', drain.total === before + 1 && game.balls === 2);
+
+        step(0.9);
+        const outsideBefore = drain.total;
+        placeBall(drain.minX - ball.radius - 2, drain.y + drain.captureDepth + 5);
+        step(0.02);
+        check('ball outside the narrowed drain funnel is not consumed', drain.total === outsideBefore);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
