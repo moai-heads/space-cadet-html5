@@ -27,3 +27,5 @@ shooter-lane exit routing.
 `audio-smoke.html` covers lazy AudioContext creation, master/SFX/UI bus creation, gesture unlock, mute gain targeting, and observable audio state.
 
 `sound-smoke.html` covers the procedural flipper, rail, bumper, target, rollover, kicker, slingshot, ramp, hole, wormhole, launch, drain, and nudge sound event set plus mute suppression.
+
+`mission-sound-smoke.html` covers mission start/progress/completion, promotion, multiplier, and fuel rule cues.
