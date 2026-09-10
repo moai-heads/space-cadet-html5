@@ -2,7 +2,8 @@
  * 3D Pinball — Space Cadet (HTML5)
  * Stages 2.1–2.10 plus 3.1: canvas boot, fixed loop, input, physics,
  * collisions, flippers, game state, plunger lane, drain/respawn, scoring hooks,
- * and the source 600×416 table coordinate map. Later stages add table rules and audio.
+ * and the source 600×416 table coordinate map. Stage 3.2 adds active
+ * target banks, rollovers, lane guides, gates, kickers, and slingshots.
  */
 (() => {
   'use strict';
@@ -76,6 +77,70 @@
     return Math.atan2(b.y - a.y, b.x - a.x);
   }
 
+  // Stage 3.2: these source polygons are taken from the open-source table
+  // data dump in reference/upstream-port/Doc/.dat dump.txt. They are kept as
+  // data and projected once so rendering and collision share the same map.
+  const worldRect = (cx, cy, width, height) => [
+    [cx - width / 2, cy - height / 2],
+    [cx + width / 2, cy - height / 2],
+    [cx + width / 2, cy + height / 2],
+    [cx - width / 2, cy + height / 2],
+  ];
+
+  const targetSources = [
+    { id: 'a_targ1', bank: 'booster', label: 'B1', points: 500, visual: [10, 12], world: [[-4.242040, 0.706733], [-4.157959, 0.706708], [-4.157959, 1.222863], [-4.242040, 1.222888]] },
+    { id: 'a_targ2', bank: 'booster', label: 'B2', points: 500, visual: [10, 12], world: [[-4.242040, 1.408076], [-4.157959, 1.408051], [-4.157959, 1.924205], [-4.242040, 1.924231]] },
+    { id: 'a_targ3', bank: 'booster', label: 'B3', points: 500, visual: [10, 12], world: [[-4.242040, 2.106732], [-4.157959, 2.106707], [-4.157959, 2.622862], [-4.242040, 2.622887]] },
+    { id: 'a_targ4', bank: 'medal', label: 'M1', points: 1500, visual: [16, 10], world: [[1.284484, -2.878328], [1.312133, -2.798923], [0.824632, -2.629339], [0.796983, -2.708743]] },
+    { id: 'a_targ5', bank: 'medal', label: 'M2', points: 1500, visual: [16, 10], world: [[0.622076, -2.647900], [0.649725, -2.568495], [0.162224, -2.398911], [0.134575, -2.478315]] },
+    { id: 'a_targ6', bank: 'medal', label: 'M3', points: 1500, visual: [16, 10], world: [[-0.037796, -2.418355], [-0.010147, -2.338950], [-0.497648, -2.169365], [-0.525297, -2.248770]] },
+    { id: 'a_targ7', bank: 'multiplier', label: 'X1', points: 500, visual: [14, 10], world: [[3.369175, -7.924452], [3.324641, -7.853134], [2.886917, -8.126654], [2.931451, -8.197972]] },
+    { id: 'a_targ8', bank: 'multiplier', label: 'X2', points: 500, visual: [14, 10], world: [[2.774403, -8.296104], [2.729868, -8.224786], [2.292144, -8.498306], [2.336679, -8.569625]] },
+    { id: 'a_targ9', bank: 'multiplier', label: 'X3', points: 500, visual: [14, 10], world: [[2.181909, -8.666334], [2.137374, -8.595016], [1.699650, -8.868536], [1.744185, -8.939855]] },
+    { id: 'a_targ10', bank: 'fuel', label: 'F1', points: 750, visual: [10, 11], world: [[7.421899, -10.735580], [7.349141, -10.740417], [7.349141, -11.283693], [7.426752, -11.283693]] },
+    { id: 'a_targ11', bank: 'fuel', label: 'F2', points: 750, visual: [12, 11], world: [[5.797551, -12.932883], [5.792857, -12.860115], [5.249582, -12.859049], [5.249429, -12.936660]] },
+    { id: 'a_targ12', bank: 'fuel', label: 'F3', points: 750, visual: [10, 11], world: [[4.207457, -12.452173], [4.258523, -12.400120], [3.896799, -11.994775], [3.838892, -12.046450]] },
+    { id: 'a_targ13', bank: 'mission', label: 'M1', points: 1000, visual: [9, 11], world: [[4.553364, 2.980716], [4.626232, 2.983456], [4.641869, 3.526507], [4.564290, 3.528741]] },
+    { id: 'a_targ14', bank: 'mission', label: 'M2', points: 1000, visual: [9, 11], world: [[4.553364, 3.634841], [4.626232, 3.637582], [4.641869, 4.180633], [4.564290, 4.182867]] },
+    { id: 'a_targ15', bank: 'mission', label: 'M3', points: 1000, visual: [9, 11], world: [[4.553364, 4.275885], [4.626232, 4.278625], [4.641869, 4.821676], [4.564290, 4.823910]] },
+    { id: 'a_targ16', bank: 'left-hazard', label: 'L1', points: 750, visual: [9, 11], world: [[5.861614, -5.692998], [5.934482, -5.690258], [5.950119, -5.147207], [5.872540, -5.144973]] },
+    { id: 'a_targ17', bank: 'left-hazard', label: 'L2', points: 750, visual: [9, 11], world: [[5.856654, -4.898884], [5.928021, -4.883924], [5.852073, -4.345982], [5.775224, -4.356832]] },
+    { id: 'a_targ18', bank: 'left-hazard', label: 'L3', points: 750, visual: [9, 11], world: [[5.754221, -4.123814], [5.816525, -4.085926], [5.565651, -3.604042], [5.496811, -3.639881]] },
+    { id: 'a_targ19', bank: 'right-hazard', label: 'R1', points: 750, visual: [9, 11], world: [[-3.285803, -7.472939], [-3.223500, -7.435050], [-3.474373, -6.953167], [-3.543214, -6.989006]] },
+    { id: 'a_targ20', bank: 'right-hazard', label: 'R2', points: 750, visual: [9, 11], world: [[-3.652299, -6.800594], [-3.586594, -6.768969], [-3.789226, -6.264896], [-3.861236, -6.293843]] },
+    { id: 'a_targ21', bank: 'right-hazard', label: 'R3', points: 750, visual: [9, 11], world: [[-3.902839, -5.970493], [-3.830392, -5.962211], [-3.856160, -5.419546], [-3.933683, -5.423227]] },
+    { id: 'a_targ22', bank: 'wormhole', label: 'W', points: 750, visual: [13, 12], world: [[-2.953458, -2.506831], [-2.919518, -2.442292], [-3.382525, -2.158086], [-3.423126, -2.224230]] },
+  ];
+
+  const rolloverSources = [
+    { id: 'a_roll1', label: 'R1', points: 2000, world: worldRect(1.25, -9.50, 0.92, 0.68) },
+    { id: 'a_roll2', label: 'R2', points: 2000, world: worldRect(0.00, -9.50, 0.92, 0.68) },
+    { id: 'a_roll3', label: 'R3', points: 2000, world: worldRect(-1.25, -9.50, 0.84, 0.70) },
+    { id: 'a_roll4', label: 'R4', points: 500, world: worldRect(7.00, 8.00, 0.88, 0.68) },
+    { id: 'a_roll5', label: 'R5', points: 500, world: worldRect(5.85, 8.00, 0.72, 0.62) },
+    { id: 'a_roll6', label: 'R6', points: 500, world: worldRect(4.75, 8.00, 0.86, 0.70) },
+    { id: 'a_roll7', label: 'R7', points: 500, world: worldRect(-4.75, 8.00, 0.82, 0.72) },
+    { id: 'a_roll8', label: 'R8', points: 500, world: worldRect(-5.85, 8.00, 0.72, 0.70) },
+    { id: 'a_roll9', label: 'R9', points: 10000, world: [[4.698180, -7.002740], [4.709074, -7.405536], [5.063625, -7.597506], [5.407281, -7.386681], [5.396387, -6.983885], [5.041836, -6.791915]] },
+    { id: 'a_roll110', label: 'L1', points: 500, world: worldRect(7.27, 1.85, 0.53, 0.49) },
+    { id: 'a_roll111', label: 'L2', points: 500, world: worldRect(6.32, 2.10, 0.69, 0.48) },
+    { id: 'a_roll112', label: 'L3', points: 500, world: worldRect(5.35, 2.39, 0.68, 0.48) },
+    { id: 'a_roll179', label: 'A', points: 10000, world: [[5.298720, 1.609502], [4.946744, 2.060959], [3.244249, 1.285616], [3.571364, 0.848427]] },
+    { id: 'a_roll180', label: 'B', points: 10000, world: [[5.716518, 0.642137], [5.410181, 1.162493], [4.114841, 0.340192], [4.400651, -0.163294]] },
+    { id: 'a_roll181', label: 'C', points: 10000, world: [[6.293731, -0.359319], [5.975935, 0.242826], [4.787576, -0.530924], [5.085002, -1.112488]] },
+    { id: 'a_roll182', label: 'D', points: 10000, world: [[6.728972, -1.373545], [6.446019, -0.904035], [5.432468, -1.422942], [5.697550, -1.875902]] },
+    { id: 'a_roll183', label: 'E', points: 10000, world: [[7.227558, -2.512395], [6.949279, -2.049177], [5.832143, -2.345689], [6.092129, -2.791297]] },
+    { id: 'a_roll184', label: 'F', points: 10000, world: [[7.416503, -3.528887], [7.225690, -3.042141], [6.263735, -3.291593], [6.440838, -3.759464]] },
+  ];
+
+  const guideSources = [
+    { id: 'guide-left-upper', world: [[-6.26309, 3.554958], [-6.26309, 5.064444]], restitution: 0.78 },
+    { id: 'guide-left-mid', world: [[-5.229421, 3.916008], [-5.2351, 5.364433]], restitution: 0.78 },
+    { id: 'guide-left-ramp', world: [[-3.324988, -11.956454], [-2.625601, -10.714686]], restitution: 0.82 },
+    { id: 'guide-right-ramp', world: [[2.625341, -10.714686], [3.324727, -11.956454]], restitution: 0.82 },
+    { id: 'guide-right-lane', world: [[6.408451, -0.973824], [7.663972, -4.499189]], restitution: 0.78 },
+  ];
+
   const mappedTable = {
     plunger: projectWorldPair([tableMap.plunger.x, tableMap.plunger.y]),
     tableCorners: {
@@ -94,6 +159,12 @@
     ],
     flippers: {},
     bumpers: [],
+    targets: [],
+    rollovers: [],
+    guides: [],
+    gates: [],
+    kickers: [],
+    slingshots: [],
   };
   for (const side of ['left', 'right']) {
     const source = tableMap.flippers[side];
@@ -113,6 +184,63 @@
     const point = projectWorldPair(source.world);
     mappedTable.bumpers.push({ ...source, x: point.x, y: point.y, points: 100, restitution: 1.04, kick: 70, flash: 0, hitCooldown: 0, hits: 0 });
   }
+  function polygonMetrics(points) {
+    const xs = points.map(point => point.x);
+    const ys = points.map(point => point.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    return {
+      minX, maxX, minY, maxY,
+      width: maxX - minX,
+      height: maxY - minY,
+      x: (minX + maxX) / 2,
+      y: (minY + maxY) / 2,
+    };
+  }
+
+  function mapWorldPolygon(source, options = {}) {
+    const points = source.world.map(projectWorldPair);
+    const bounds = polygonMetrics(points);
+    return {
+      ...source,
+      points,
+      ...bounds,
+      collisionRadius: options.collisionRadius ?? Math.max(bounds.width, bounds.height) * 0.5 + 1.6,
+      triggerRadius: options.triggerRadius ?? Math.max(bounds.width, bounds.height) * 0.5 + 2.2,
+      active: true,
+      lit: false,
+      inside: false,
+      flash: 0,
+      hitCooldown: 0,
+      hits: 0,
+      dropTimer: 0,
+    };
+  }
+
+  mappedTable.targets = targetSources.map(source => mapWorldPolygon(source, { collisionRadius: 3.3 }));
+  mappedTable.rollovers = rolloverSources.map(source => mapWorldPolygon(source, { triggerRadius: 5.7 }));
+  mappedTable.guides = guideSources.map(source => ({
+    ...source,
+    a: projectWorldPair(source.world[0]),
+    b: projectWorldPair(source.world[1]),
+    points: source.points || 12,
+    flash: 0,
+    hits: 0,
+  }));
+  mappedTable.gates = [
+    { id: 'v_gate1', a: projectWorldPoint(6.433412, 10.528717), b: projectWorldPoint(7.605177, 9.725221), restitution: 0.86, enabled: true, flash: 0, hits: 0 },
+    { id: 'v_gate2', a: projectWorldPoint(-6.298658, 10.672674), b: projectWorldPoint(-5.213938, 11.435996), restitution: 0.86, enabled: true, flash: 0, hits: 0 },
+  ];
+  mappedTable.kickers = [
+    { id: 'a_kick1', x: 42.1, y: 377.8, radius: 10, direction: { x: 0.52, y: -0.85 }, kick: 350, points: 500, flash: 0, hitCooldown: 0, hits: 0 },
+    { id: 'a_kick2', x: 299.0, y: 378.0, radius: 10, direction: { x: -0.52, y: -0.85 }, kick: 350, points: 500, flash: 0, hitCooldown: 0, hits: 0 },
+  ];
+  mappedTable.slingshots = [
+    { id: 'left-sling', points: [{ x: 60, y: 326 }, { x: 116, y: 350 }, { x: 79, y: 381 }], direction: { x: 0.62, y: -0.78 }, kick: 150, flash: 0, hitCooldown: 0, hits: 0 },
+    { id: 'right-sling', points: [{ x: 258, y: 350 }, { x: 314, y: 326 }, { x: 295, y: 381 }], direction: { x: -0.62, y: -0.78 }, kick: 150, flash: 0, hitCooldown: 0, hits: 0 },
+  ];
   const shooterRail = mappedTable.shooterRail;
   const tableCorners = mappedTable.tableCorners;
   let cssScale = 1;
@@ -198,6 +326,7 @@
     scoring.combo = 0;
     scoring.comboTimer = 0;
     scoring.popups.length = 0;
+    resetTableFeatures();
     setGameState('ready', 'PRESS SPACE OR ENTER');
     armPlunger();
     markAction('NEW GAME');
@@ -526,6 +655,7 @@
     ball.y += ball.vy * dt;
     collideBallWithWalls();
     collideBallWithBumpers();
+    collideBallWithTableFeatures();
     collideBallWithFlippers();
     limitBallSpeed();
 
@@ -561,11 +691,23 @@
   // records. Their screen positions are deliberately kept as data, so later
   // rule/visual stages can add targets without inventing a second coordinate map.
   const bumpers = mappedTable.bumpers;
+  const targets = mappedTable.targets;
+  const rollovers = mappedTable.rollovers;
+  const laneGuides = mappedTable.guides;
+  const gates = mappedTable.gates;
+  const kickers = mappedTable.kickers;
+  const slingshots = mappedTable.slingshots;
 
   const collisionState = {
     wallHits: 0,
     flipperHits: 0,
     bumperHits: 0,
+    targetHits: 0,
+    rolloverHits: 0,
+    guideHits: 0,
+    gateHits: 0,
+    kickerHits: 0,
+    slingshotHits: 0,
     impacts: [],
   };
 
@@ -600,7 +742,7 @@
     awardScore(10, 'RAIL', x, y);
   }
 
-  function collideBallWithSegment(segment) {
+  function collideBallWithSegment(segment, impactRecorder = recordWallImpact) {
     const nearest = closestPointOnSegment(ball.x, ball.y,
       segment.a.x, segment.a.y, segment.b.x, segment.b.y);
     let nx = ball.x - nearest.x;
@@ -641,7 +783,7 @@
       ball.vx -= tangentVelocity * 0.018 * tangentX;
       ball.vy -= tangentVelocity * 0.018 * tangentY;
       limitBallSpeed();
-      recordWallImpact(nearest.x, nearest.y, nx, ny);
+      impactRecorder(nearest.x, nearest.y, nx, ny, segment);
     }
     return true;
   }
@@ -652,6 +794,221 @@
     for (let pass = 0; pass < 2; pass++) {
       for (const wall of walls) collided = collideBallWithSegment(wall) || collided;
     }
+    return collided;
+  }
+
+  function recordGuideImpact(x, y, nx, ny, guide) {
+    collisionState.guideHits += 1;
+    guide.hits += 1;
+    guide.flash = 1;
+    collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'guide' });
+    if (collisionState.impacts.length > 16) collisionState.impacts.shift();
+    awardScore(15, 'GUIDE', x, y);
+  }
+
+  function recordGateImpact(x, y, nx, ny, gate) {
+    collisionState.gateHits += 1;
+    gate.hits += 1;
+    gate.flash = 1;
+    collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'gate' });
+    if (collisionState.impacts.length > 16) collisionState.impacts.shift();
+    awardScore(25, 'GATE', x, y);
+  }
+
+  function collideBallWithGates() {
+    let collided = false;
+    for (const gate of gates) {
+      if (gate.enabled) collided = collideBallWithSegment(gate, recordGateImpact) || collided;
+    }
+    return collided;
+  }
+
+  function collideBallWithGuides() {
+    let collided = false;
+    for (const guide of laneGuides) collided = collideBallWithSegment(guide, recordGuideImpact) || collided;
+    return collided;
+  }
+
+  function recordTargetImpact(x, y, nx, ny, target) {
+    collisionState.targetHits += 1;
+    target.hits += 1;
+    target.lit = true;
+    target.flash = 1;
+    target.hitCooldown = 0.12;
+    target.active = false;
+    target.dropTimer = 0.82;
+    collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'target' });
+    if (collisionState.impacts.length > 16) collisionState.impacts.shift();
+    awardScore(target.points, target.bank.toUpperCase(), x, y);
+  }
+
+  function collideBallWithTarget(target) {
+    if (!target.active || target.hitCooldown > 0) return false;
+    const dx = ball.x - target.x;
+    const dy = ball.y - target.y;
+    let distance = Math.hypot(dx, dy);
+    let nx = distance > 0.0001 ? dx / distance : 0;
+    let ny = distance > 0.0001 ? dy / distance : -1;
+    if (distance < 0.0001) distance = 0;
+    const hitRadius = ball.radius + target.collisionRadius;
+    const penetration = hitRadius - distance;
+    if (penetration <= 0) return false;
+
+    ball.x += nx * (penetration + 0.06);
+    ball.y += ny * (penetration + 0.06);
+    const normalVelocity = ball.vx * nx + ball.vy * ny;
+    if (normalVelocity < 0) {
+      ball.vx -= 1.88 * normalVelocity * nx;
+      ball.vy -= 1.88 * normalVelocity * ny;
+    }
+    ball.vx += nx * 38;
+    ball.vy += ny * 38;
+    limitBallSpeed();
+    recordTargetImpact(target.x + nx * target.collisionRadius, target.y + ny * target.collisionRadius, nx, ny, target);
+    return true;
+  }
+
+  function collideBallWithTargets() {
+    let collided = false;
+    for (const target of targets) collided = collideBallWithTarget(target) || collided;
+    return collided;
+  }
+
+  function pointInPolygon(x, y, points) {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const xi = points[i].x;
+      const yi = points[i].y;
+      const xj = points[j].x;
+      const yj = points[j].y;
+      const crosses = ((yi > y) !== (yj > y))
+        && (x < (xj - xi) * (y - yi) / ((yj - yi) || Number.EPSILON) + xi);
+      if (crosses) inside = !inside;
+    }
+    return inside;
+  }
+
+  function collideBallWithRollovers() {
+    let triggered = false;
+    for (const rollover of rollovers) {
+      const distance = Math.hypot(ball.x - rollover.x, ball.y - rollover.y);
+      const inside = pointInPolygon(ball.x, ball.y, rollover.points)
+        || distance <= rollover.triggerRadius + ball.radius * 0.35;
+      if (inside && !rollover.inside && rollover.hitCooldown <= 0) {
+        rollover.lit = true;
+        rollover.flash = 1;
+        rollover.hitCooldown = 0.16;
+        rollover.hits += 1;
+        collisionState.rolloverHits += 1;
+        collisionState.impacts.push({ x: rollover.x, y: rollover.y, nx: 0, ny: -1, life: 1, kind: 'rollover' });
+        if (collisionState.impacts.length > 16) collisionState.impacts.shift();
+        awardScore(rollover.points, 'ROLLOVER', rollover.x, rollover.y);
+        triggered = true;
+      }
+      rollover.inside = inside;
+    }
+    return triggered;
+  }
+
+  function recordKickerImpact(kicker) {
+    collisionState.kickerHits += 1;
+    kicker.hits += 1;
+    kicker.flash = 1;
+    kicker.hitCooldown = 0.20;
+    collisionState.impacts.push({ x: kicker.x, y: kicker.y, nx: kicker.direction.x, ny: kicker.direction.y, life: 1, kind: 'kicker' });
+    if (collisionState.impacts.length > 16) collisionState.impacts.shift();
+    awardScore(kicker.points, 'KICKER', kicker.x, kicker.y);
+  }
+
+  function collideBallWithKicker(kicker) {
+    if (kicker.hitCooldown > 0) return false;
+    const dx = ball.x - kicker.x;
+    const dy = ball.y - kicker.y;
+    const distance = Math.hypot(dx, dy);
+    const hitRadius = ball.radius + kicker.radius;
+    if (distance >= hitRadius) return false;
+    const nx = distance > 0.0001 ? dx / distance : kicker.direction.x;
+    const ny = distance > 0.0001 ? dy / distance : kicker.direction.y;
+    ball.x = kicker.x + nx * (hitRadius + 0.12);
+    ball.y = kicker.y + ny * (hitRadius + 0.12);
+    ball.vx = kicker.direction.x * kicker.kick + ball.vx * 0.12;
+    ball.vy = kicker.direction.y * kicker.kick + ball.vy * 0.12;
+    limitBallSpeed();
+    recordKickerImpact(kicker);
+    return true;
+  }
+
+  function collideBallWithKickers() {
+    let collided = false;
+    for (const kicker of kickers) collided = collideBallWithKicker(kicker) || collided;
+    return collided;
+  }
+
+  function polygonCenter(points) {
+    return points.reduce((center, point) => ({ x: center.x + point.x / points.length, y: center.y + point.y / points.length }), { x: 0, y: 0 });
+  }
+
+  function recordSlingshotImpact(sling) {
+    collisionState.slingshotHits += 1;
+    sling.hits += 1;
+    sling.flash = 1;
+    sling.hitCooldown = 0.18;
+    const center = polygonCenter(sling.points);
+    const dx = ball.x - center.x;
+    const dy = ball.y - center.y;
+    const length = Math.hypot(dx, dy) || 1;
+    collisionState.impacts.push({ x: ball.x, y: ball.y, nx: dx / length, ny: dy / length, life: 1, kind: 'slingshot' });
+    if (collisionState.impacts.length > 16) collisionState.impacts.shift();
+    awardScore(500, 'SLINGSHOT', ball.x, ball.y);
+  }
+
+  function collideBallWithSlingshot(sling) {
+    if (sling.hitCooldown > 0) return false;
+    const center = polygonCenter(sling.points);
+    let nearest = null;
+    let distance = Infinity;
+    for (let i = 0; i < sling.points.length; i += 1) {
+      const a = sling.points[i];
+      const b = sling.points[(i + 1) % sling.points.length];
+      const candidate = closestPointOnSegment(ball.x, ball.y, a.x, a.y, b.x, b.y);
+      const candidateDistance = Math.hypot(ball.x - candidate.x, ball.y - candidate.y);
+      if (candidateDistance < distance) {
+        distance = candidateDistance;
+        nearest = candidate;
+      }
+    }
+    const inside = pointInPolygon(ball.x, ball.y, sling.points);
+    if (!inside && distance > ball.radius + 1.5) return false;
+
+    let nx = ball.x - (nearest ? nearest.x : center.x);
+    let ny = ball.y - (nearest ? nearest.y : center.y);
+    const normalLength = Math.hypot(nx, ny) || 1;
+    nx /= normalLength;
+    ny /= normalLength;
+    const penetration = inside ? ball.radius + 1.5 : ball.radius + 1.5 - distance;
+    ball.x += nx * Math.max(0.2, penetration);
+    ball.y += ny * Math.max(0.2, penetration);
+    ball.vx += sling.direction.x * sling.kick;
+    ball.vy += sling.direction.y * sling.kick;
+    limitBallSpeed();
+    recordSlingshotImpact(sling);
+    return true;
+  }
+
+  function collideBallWithSlingshots() {
+    let collided = false;
+    for (const sling of slingshots) collided = collideBallWithSlingshot(sling) || collided;
+    return collided;
+  }
+
+  function collideBallWithTableFeatures() {
+    let collided = false;
+    collided = collideBallWithGuides() || collided;
+    collided = collideBallWithGates() || collided;
+    collided = collideBallWithTargets() || collided;
+    collided = collideBallWithRollovers() || collided;
+    collided = collideBallWithSlingshots() || collided;
+    collided = collideBallWithKickers() || collided;
     return collided;
   }
 
@@ -700,6 +1057,54 @@
     let collided = false;
     for (const bumper of bumpers) collided = collideBallWithBumper(bumper) || collided;
     return collided;
+  }
+
+  function updateTableFeatures(dt) {
+    for (const target of targets) {
+      target.flash = Math.max(0, target.flash - dt * 5.4);
+      target.hitCooldown = Math.max(0, target.hitCooldown - dt);
+      if (!target.active) {
+        target.dropTimer = Math.max(0, target.dropTimer - dt);
+        if (target.dropTimer === 0) target.active = true;
+      }
+    }
+    for (const rollover of rollovers) {
+      rollover.flash = Math.max(0, rollover.flash - dt * 4.5);
+      rollover.hitCooldown = Math.max(0, rollover.hitCooldown - dt);
+    }
+    for (const guide of laneGuides) guide.flash = Math.max(0, guide.flash - dt * 5);
+    for (const gate of gates) gate.flash = Math.max(0, gate.flash - dt * 5);
+    for (const kicker of kickers) {
+      kicker.flash = Math.max(0, kicker.flash - dt * 5.5);
+      kicker.hitCooldown = Math.max(0, kicker.hitCooldown - dt);
+    }
+    for (const sling of slingshots) {
+      sling.flash = Math.max(0, sling.flash - dt * 5.5);
+      sling.hitCooldown = Math.max(0, sling.hitCooldown - dt);
+    }
+  }
+
+  function resetTableFeatures() {
+    for (const target of targets) {
+      target.active = true;
+      target.lit = false;
+      target.inside = false;
+      target.flash = 0;
+      target.hitCooldown = 0;
+      target.hits = 0;
+      target.dropTimer = 0;
+    }
+    for (const rollover of rollovers) {
+      rollover.lit = false;
+      rollover.inside = false;
+      rollover.flash = 0;
+      rollover.hitCooldown = 0;
+      rollover.hits = 0;
+    }
+    for (const guide of laneGuides) { guide.flash = 0; guide.hits = 0; }
+    for (const gate of gates) { gate.flash = 0; gate.hits = 0; gate.enabled = true; }
+    for (const kicker of kickers) { kicker.flash = 0; kicker.hitCooldown = 0; kicker.hits = 0; }
+    for (const sling of slingshots) { sling.flash = 0; sling.hitCooldown = 0; sling.hits = 0; }
   }
 
   // Stage 2.7 + 3.1: flipper pivots, travel, and angles are derived from
@@ -991,7 +1396,10 @@
     text(game.lastMessage, p.x + 18, p.y + 231, 8, '#d9b75d', 'left', 700);
 
     const lights = [
-      ['READY', true], ['LIGHTS', scoring.hits > 0], ['RAMP', false], ['WORM HOLE', false],
+      ['TARGETS', targets.some(target => target.lit || target.flash > 0)],
+      ['ROLLOVERS', rollovers.some(rollover => rollover.lit)],
+      ['SLINGS', collisionState.slingshotHits > 0],
+      ['KICKERS', collisionState.kickerHits > 0],
     ];
     lights.forEach(([label, on], i) => {
       const yy = p.y + 255 + i * 20;
@@ -1021,6 +1429,139 @@
     text(`DRAIN ${String(drain.total).padStart(2, '0')}`, p.x + 98, p.y + 374, 8, '#65808f', 'left', 400);
     text(`NEXT ${drain.cooldown > 0 ? `${drain.cooldown.toFixed(1)}s` : (plunger.armed ? 'READY' : 'IN PLAY')}`,
       p.x + 98, p.y + 389, 8, '#65808f', 'left', 400);
+  }
+
+  function drawMappedPolygon(points, inner, fill, stroke, lineWidth = 1) {
+    ctx.beginPath();
+    ctx.moveTo(inner.x + points[0].x, inner.y + points[0].y);
+    for (let i = 1; i < points.length; i += 1) ctx.lineTo(inner.x + points[i].x, inner.y + points[i].y);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+  }
+
+  const featureColors = {
+    booster: { on: '#e6c75f', off: '#275461', edge: '#f2e19b' },
+    medal: { on: '#dd6f84', off: '#532b45', edge: '#f0a6b3' },
+    multiplier: { on: '#6fc9d1', off: '#245164', edge: '#b4f1ee' },
+    fuel: { on: '#dd9c50', off: '#573a2b', edge: '#f2c47b' },
+    mission: { on: '#a681dd', off: '#3c315e', edge: '#d1baff' },
+    'left-hazard': { on: '#d85f67', off: '#4d2839', edge: '#f0a3a0' },
+    'right-hazard': { on: '#5fc2d1', off: '#244d5a', edge: '#b4f1ee' },
+    wormhole: { on: '#e6c75f', off: '#3d3e2b', edge: '#f2e19b' },
+  };
+
+  function drawLaneGuideGraphics(inner) {
+    for (const guide of laneGuides) {
+      const hot = guide.flash > 0;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.shadowColor = hot ? '#fff0a0' : '#6bb7c2';
+      ctx.shadowBlur = hot ? 8 : 3;
+      ctx.strokeStyle = hot ? '#f7dc7a' : 'rgba(172, 214, 216, .72)';
+      ctx.lineWidth = hot ? 3 : 2;
+      ctx.beginPath();
+      ctx.moveTo(inner.x + guide.a.x, inner.y + guide.a.y);
+      ctx.lineTo(inner.x + guide.b.x, inner.y + guide.b.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawGateGraphics(inner) {
+    for (const gate of gates) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.shadowColor = gate.flash > 0 ? '#fff0a2' : '#d2ae5d';
+      ctx.shadowBlur = gate.flash > 0 ? 10 : 4;
+      ctx.strokeStyle = gate.enabled ? (gate.flash > 0 ? '#fff0a2' : '#bd9851') : '#31404b';
+      ctx.lineWidth = gate.flash > 0 ? 3 : 2;
+      ctx.beginPath();
+      ctx.moveTo(inner.x + gate.a.x, inner.y + gate.a.y);
+      ctx.lineTo(inner.x + gate.b.x, inner.y + gate.b.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawRolloverGraphics(inner) {
+    for (const rollover of rollovers) {
+      const lit = rollover.lit || rollover.flash > 0;
+      const fill = lit ? '#e3c85f' : 'rgba(12, 35, 47, .92)';
+      const edge = lit ? '#fff0a1' : 'rgba(105, 182, 191, .78)';
+      ctx.save();
+      ctx.shadowColor = lit ? '#ffe98c' : 'transparent';
+      ctx.shadowBlur = lit ? 8 : 0;
+      drawMappedPolygon(rollover.points, inner, fill, edge, lit ? 1.6 : 1);
+      ctx.restore();
+      if (rollover.width > 7 && rollover.height > 5) {
+        text(rollover.label, inner.x + rollover.x, inner.y + rollover.y, 5, lit ? '#142538' : '#8dbbc0', 'center', 800);
+      }
+    }
+  }
+
+  function drawTargetGraphics(inner) {
+    for (const target of targets) {
+      const palette = featureColors[target.bank] || featureColors.booster;
+      const raised = target.active ? 1 : 0.34;
+      const w = target.visual[0] * raised;
+      const h = target.visual[1] * raised;
+      const lit = target.flash > 0 || target.hits > 0;
+      ctx.save();
+      ctx.translate(inner.x + target.x, inner.y + target.y);
+      ctx.shadowColor = lit ? palette.on : 'transparent';
+      ctx.shadowBlur = lit ? 10 : 0;
+      roundedRect(-w / 2, -h / 2, w, h, 2);
+      ctx.fillStyle = target.active ? (lit ? palette.on : palette.off) : '#14242e';
+      ctx.fill();
+      ctx.strokeStyle = target.active ? palette.edge : '#48606b';
+      ctx.lineWidth = lit ? 1.6 : 1;
+      ctx.stroke();
+      if (w >= 7 && h >= 7) text(target.label, 0, 0.3, 5, target.active && lit ? '#15253a' : '#99c7ca', 'center', 800);
+      ctx.restore();
+    }
+  }
+
+  function drawSlingshotGraphics(inner) {
+    for (const sling of slingshots) {
+      const hot = sling.flash > 0;
+      const fill = hot ? 'rgba(240, 192, 83, .72)' : 'rgba(169, 43, 92, .52)';
+      const stroke = hot ? '#ffe48b' : '#d36a91';
+      ctx.save();
+      ctx.shadowColor = hot ? '#ffe88c' : '#b63e7e';
+      ctx.shadowBlur = hot ? 12 : 5;
+      drawMappedPolygon(sling.points, inner, fill, stroke, hot ? 2.5 : 1.5);
+      ctx.restore();
+      const center = polygonCenter(sling.points);
+      text('S', inner.x + center.x, inner.y + center.y + 1, 7, hot ? '#17263a' : '#f0b3c1', 'center', 900);
+    }
+  }
+
+  function drawKickerGraphics(inner) {
+    for (const kicker of kickers) {
+      const hot = kicker.flash > 0;
+      ctx.save();
+      ctx.shadowColor = hot ? '#ffe88d' : '#bb5278';
+      ctx.shadowBlur = hot ? 12 : 5;
+      ctx.fillStyle = hot ? '#f4ca62' : '#b43d6e';
+      ctx.beginPath();
+      ctx.arc(inner.x + kicker.x, inner.y + kicker.y, kicker.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = hot ? '#fff0a5' : '#e79ab0';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#17263a';
+      ctx.beginPath();
+      ctx.moveTo(inner.x + kicker.x, inner.y + kicker.y - 5);
+      ctx.lineTo(inner.x + kicker.x - 3, inner.y + kicker.y + 2);
+      ctx.lineTo(inner.x + kicker.x + 3, inner.y + kicker.y + 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   function drawTable(t) {
@@ -1113,41 +1654,12 @@
     ctx.lineTo(192, 83);
     ctx.stroke();
 
-    // The first three popup targets are mapped from a_targ1–a_targ3.
-    const topTargetYs = [0.965, 1.666, 2.365];
-    topTargetYs.forEach((worldY, index) => {
-      const a = projectWorldPoint(-4.24204, worldY);
-      const b = projectWorldPoint(-4.157959, worldY + .516);
-      const x = (a.x + b.x) / 2;
-      const y = (a.y + b.y) / 2;
-      ctx.fillStyle = index === 0 ? '#d8bb58' : '#163d4d';
-      ctx.strokeStyle = '#79bcc5';
-      ctx.lineWidth = 1;
-      roundedRect(x - 5, y - 5, 10, 10, 1.5);
-      ctx.fill();
-      ctx.stroke();
-      text(String(index + 1), x, y + .5, 7, index === 0 ? '#14253a' : '#9ad7d7', 'center');
-    });
-
-    // Inner guide rails are simple screen projections of the source's long
-    // one-way segments; Stage 3.2 will turn these into active gates/guides.
-    const guidePaths = [
-      [[-6.26309, 3.554958], [-6.26309, 5.064444]],
-      [[-5.229421, 3.916008], [-5.2351, 5.364433]],
-      [[2.625341, -10.714686], [3.324727, -11.956454]],
-      [[-3.324988, -11.956454], [-2.625601, -10.714686]],
-      [[6.408451, -.973824], [7.663972, -4.499189]],
-    ];
-    ctx.strokeStyle = 'rgba(174, 213, 213, .68)';
-    ctx.lineWidth = 2;
-    for (const path of guidePaths) {
-      const a = projectWorldPair(path[0]);
-      const b = projectWorldPair(path[1]);
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
-    }
+    // Stage 3.2: mapped table features are drawn from the same polygons used
+    // by the collision system, so lamps and contact geometry cannot drift.
+    drawLaneGuideGraphics(inner);
+    drawGateGraphics(inner);
+    drawRolloverGraphics(inner);
+    drawTargetGraphics(inner);
 
     // A pair of curved ramp outlines reserves the source ramp lanes visually.
     ctx.strokeStyle = '#b7d1d1';
@@ -1212,24 +1724,10 @@
     // near the top and four smaller field bumpers below/left.
     for (const bumper of bumpers) drawBumperGraphic(bumper, inner);
 
-    // Lower slingshots and the open apron are anchored to the mapped flippers.
-    ctx.fillStyle = 'rgba(169, 43, 92, .52)';
-    ctx.strokeStyle = '#d36a91';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(60, 326);
-    ctx.lineTo(116, 350);
-    ctx.lineTo(79, 381);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(258, 350);
-    ctx.lineTo(314, 326);
-    ctx.lineTo(295, 381);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    // Lower slingshots and kickers now have the same data-driven shape used
+    // by the active collision handlers.
+    drawSlingshotGraphics(inner);
+    drawKickerGraphics(inner);
 
     const drainLeft = 23;
     const drainRight = 344;
@@ -1398,6 +1896,7 @@
     updateDrain(dt);
     updateScoring(dt);
     updateBumpers(dt);
+    updateTableFeatures(dt);
     updateFlipper(flippers.left, input.left, dt);
     updateFlipper(flippers.right, input.right, dt);
     simulateBall(dt);
@@ -1455,6 +1954,12 @@
   window.spaceCadetPlunger = plunger;
   window.spaceCadetDrain = drain;
   window.spaceCadetBumpers = bumpers;
+  window.spaceCadetTargets = targets;
+  window.spaceCadetRollovers = rollovers;
+  window.spaceCadetLaneGuides = laneGuides;
+  window.spaceCadetGates = gates;
+  window.spaceCadetKickers = kickers;
+  window.spaceCadetSlingshots = slingshots;
   window.spaceCadetScoring = scoring;
   if (testMode) {
     window.spaceCadetTest = {

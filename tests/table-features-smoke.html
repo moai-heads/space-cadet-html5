@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet table feature smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const results = [];
+      const step = seconds => window.spaceCadetTest.step(seconds);
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const game = window.spaceCadetGame;
+      const ball = window.spaceCadetBall;
+      const table = window.spaceCadetTableCoordinates.mapped;
+      const collisions = window.spaceCadetCollisionState;
+      const placeBall = (feature, vx = 0, vy = 0) => {
+        ball.active = true;
+        ball.x = feature.x;
+        ball.y = feature.y;
+        ball.previousX = ball.x;
+        ball.previousY = ball.y;
+        ball.vx = vx;
+        ball.vy = vy;
+        window.spaceCadetPlunger.armed = false;
+      };
+      const strikeSegment = (segment) => {
+        const sx = segment.b.x - segment.a.x;
+        const sy = segment.b.y - segment.a.y;
+        const length = Math.hypot(sx, sy) || 1;
+        const nx = -sy / length;
+        const ny = sx / length;
+        const mx = (segment.a.x + segment.b.x) / 2;
+        const my = (segment.a.y + segment.b.y) / 2;
+        ball.active = true;
+        ball.x = mx + nx * (ball.radius - 0.6);
+        ball.y = my + ny * (ball.radius - 0.6);
+        ball.previousX = ball.x;
+        ball.previousY = ball.y;
+        ball.vx = -nx * 240;
+        ball.vy = -ny * 240;
+        window.spaceCadetPlunger.armed = false;
+      };
+
+      function run() {
+        check('22 source targets mapped', table.targets.length === 22);
+        check('18 source rollovers mapped', table.rollovers.length === 18);
+        check('five lane guides mapped', table.guides.length === 5);
+        check('two gates mapped and enabled', table.gates.length === 2 && table.gates.every(gate => gate.enabled));
+        check('two kickers mapped', table.kickers.length === 2);
+        check('two slingshots mapped', table.slingshots.length === 2);
+
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter' }));
+        step(0.02);
+        check('feature test starts a game', game.state === 'playing');
+
+        const guide = window.spaceCadetLaneGuides[0];
+        const guideHits = collisions.guideHits;
+        strikeSegment(guide);
+        step(0.01);
+        check('lane guide rebounds ball', collisions.guideHits === guideHits + 1 && guide.hits === 1);
+
+        const gate = window.spaceCadetGates[0];
+        const gateHits = collisions.gateHits;
+        strikeSegment(gate);
+        step(0.01);
+        check('enabled gate rebounds ball', collisions.gateHits === gateHits + 1 && gate.hits === 1);
+
+        const target = window.spaceCadetTargets[21];
+        const targetHits = collisions.targetHits;
+        placeBall(target);
+        step(0.01);
+        check('target bank collision awards and drops target',
+          collisions.targetHits === targetHits + 1 && target.hits === 1 && !target.active);
+
+        const rollover = window.spaceCadetRollovers[0];
+        const rolloverHits = collisions.rolloverHits;
+        rollover.lit = false;
+        rollover.inside = false;
+        rollover.hitCooldown = 0;
+        placeBall(rollover);
+        step(0.01);
+        check('rollover lights on entry',
+          collisions.rolloverHits === rolloverHits + 1 && rollover.lit);
+
+        const kicker = window.spaceCadetKickers[0];
+        const kickerHits = collisions.kickerHits;
+        kicker.hitCooldown = 0;
+        placeBall(kicker);
+        step(0.01);
+        check('kicker launches ball',
+          collisions.kickerHits === kickerHits + 1 && kicker.hits === 1 && ball.vy < -200);
+
+        const sling = window.spaceCadetSlingshots[0];
+        const slingHits = collisions.slingshotHits;
+        sling.hitCooldown = 0;
+        ball.active = true;
+        ball.x = 85;
+        ball.y = 352;
+        ball.previousX = ball.x;
+        ball.previousY = ball.y;
+        ball.vx = 0;
+        ball.vy = 0;
+        step(0.01);
+        check('slingshot gives a kick',
+          collisions.slingshotHits === slingHits + 1 && sling.hits === 1 && ball.vy < 0);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
