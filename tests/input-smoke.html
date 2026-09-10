@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet input smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 1100px; height: 760px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="1100" height="760"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const results = [];
+      const step = seconds => window.spaceCadetTest.step(seconds);
+      const fire = (type, code) => window.dispatchEvent(new KeyboardEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        code,
+        key: code,
+      }));
+      const check = (name, pass, detail = '') => {
+        results.push({ name, pass: Boolean(pass), detail });
+      };
+
+      async function run() {
+        check('starts ready', window.spaceCadetGame.state === 'ready');
+        check('starts with three balls', window.spaceCadetGame.balls === 3);
+
+        fire('keydown', 'Enter');
+        step(0.04);
+        check('Enter starts game', window.spaceCadetGame.state === 'playing');
+        check('plunger is armed', window.spaceCadetPlunger.armed);
+
+        fire('keydown', 'Space');
+        step(0.09);
+        check('Space press is captured', window.spaceCadetInput.plunger);
+        check('plunger charges while held', window.spaceCadetPlunger.charge > 0);
+        fire('keyup', 'Space');
+        step(0.03);
+        check('Space release launches', !window.spaceCadetPlunger.armed && window.spaceCadetBall.active);
+
+        fire('keydown', 'KeyZ');
+        step(0.03);
+        check('left flipper press', window.spaceCadetInput.left && window.spaceCadetFlippers.left.pressed);
+        fire('keyup', 'KeyZ');
+        step(0.03);
+        check('left flipper release', !window.spaceCadetInput.left && !window.spaceCadetFlippers.left.pressed);
+
+        fire('keydown', 'Slash');
+        step(0.03);
+        check('right flipper press', window.spaceCadetInput.right && window.spaceCadetFlippers.right.pressed);
+        fire('keyup', 'Slash');
+        step(0.03);
+        check('right flipper release', !window.spaceCadetInput.right && !window.spaceCadetFlippers.right.pressed);
+
+        fire('keydown', 'KeyA');
+        check('left nudge event', window.spaceCadetInput.nudgeX === -1);
+        step(0.18);
+        check('nudge expires', window.spaceCadetInput.nudgeX === 0);
+
+        fire('keydown', 'KeyP');
+        step(0.025);
+        check('pause toggles on', window.spaceCadetGame.state === 'paused' && window.spaceCadetInput.paused);
+        fire('keydown', 'KeyP');
+        step(0.025);
+        check('pause toggles off', window.spaceCadetGame.state === 'playing' && !window.spaceCadetInput.paused);
+
+        fire('keydown', 'KeyH');
+        check('help toggle', window.spaceCadetInput.help);
+        fire('keydown', 'KeyH');
+        fire('keydown', 'KeyM');
+        check('mute toggle', window.spaceCadetInput.muted);
+        fire('keydown', 'KeyM');
+
+        // Put the active ball through the open apron and verify a life is spent.
+        window.spaceCadetBall.active = true;
+        window.spaceCadetBall.x = 200;
+        window.spaceCadetBall.y = 684;
+        window.spaceCadetBall.vx = 0;
+        window.spaceCadetBall.vy = 0;
+        step(0.15);
+        check('drain decrements balls', window.spaceCadetGame.balls === 2);
+        check('drain starts service interval', window.spaceCadetDrain.total === 1 && window.spaceCadetDrain.cooldown > 0);
+        step(0.9);
+        check('next ball re-arms plunger', window.spaceCadetPlunger.armed && !window.spaceCadetBall.active);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      run().catch(error => {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      });
+    })();
+  </script>
+</body>
+</html>

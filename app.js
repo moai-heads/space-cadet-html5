@@ -11,6 +11,9 @@
   if (!canvas) throw new Error('Canvas #game was not found');
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('Canvas 2D context is unavailable');
+  const scriptUrl = document.currentScript ? new URL(document.currentScript.src, window.location.href) : null;
+  const testMode = new URLSearchParams(window.location.search).has('test')
+    || Boolean(scriptUrl && scriptUrl.searchParams.has('test'));
 
   const DESIGN_W = 1100;
   const DESIGN_H = 760;
@@ -1332,7 +1335,15 @@
   window.spaceCadetDrain = drain;
   window.spaceCadetBumpers = bumpers;
   window.spaceCadetScoring = scoring;
+  if (testMode) {
+    window.spaceCadetTest = {
+      step(seconds = FIXED_DT) {
+        const ticks = Math.max(0, Math.ceil(seconds / FIXED_DT));
+        for (let i = 0; i < ticks; i += 1) updateSimulation(FIXED_DT);
+      },
+    };
+  }
 
   fitCanvas();
-  requestAnimationFrame(frame);
+  if (!testMode) requestAnimationFrame(frame);
 })();

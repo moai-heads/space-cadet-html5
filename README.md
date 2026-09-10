@@ -6,7 +6,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 
 - **Stage 2.9 complete:** open-drain detection, ball decrement, drain flash/banner, service delay, next-ball plunger reset, and final-ball game over.
 - **Stage 2.10 complete:** centralized score events with rail, flipper, and bumper awards plus score popups.
-- **Stage 2.11 in progress:** browser smoke harness covers keyboard controls, pause/mute/help, nudge expiry, drain, and respawn.
+- **Stage 2.11 complete:** deterministic Chromium smoke harness passes keyboard controls, pause/mute/help, nudge expiry, drain, and respawn.
 - See `PLAN.md` for the live stage checklist and next steps.
 
 ## Run

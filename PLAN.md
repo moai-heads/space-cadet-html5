@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
-**Last updated:** September 10, 2026  
-**Current position:** Stage 2.11 in progress  
+**Last updated:** September 10, 2026
+**Current position:** Stage 2.12 in progress
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -26,8 +26,8 @@ stage changes, and record the validating test or commit for completed work.
 - [x] **2.8 Plunger lane:** chargeable spring, launch velocity, shooter lane, and release behavior.
 - [x] **2.9 Drain/respawn:** life decrement, service delay, next-ball reset, and final-ball game over. Commit `9f96266`.
 - [x] **2.10 Scoring hooks:** rail, flipper, and bumper awards with score popups. Commit `fab54c5`.
-- [-] **2.11 Input smoke test:** run the browser harness across controls, pause/mute/help, nudge, drain, and respawn.
-- [ ] **2.12 Playable-core checkpoint:** package the tested core and record the browser test result.
+- [x] **2.11 Input smoke test:** deterministic Chromium harness covers controls, pause/mute/help, nudge, drain, and respawn. Result: `data-smoke="pass"`.
+- [-] **2.12 Playable-core checkpoint:** package the tested core and record the browser test result.
 
 ## Stage 3 — Table recreation
 
