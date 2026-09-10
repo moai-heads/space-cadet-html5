@@ -439,6 +439,7 @@
     const bounds = polygonMetrics(points);
     return {
       ...source,
+      score: Number.isFinite(source.points) ? source.points : (Number(source.score) || 0),
       points,
       ...bounds,
       collisionRadius: options.collisionRadius ?? Math.max(bounds.width, bounds.height) * 0.5 + 1.6,
@@ -1919,7 +1920,7 @@
     target.dropTimer = 0.82;
     collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'target' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
-    awardScore(target.points, target.bank.toUpperCase(), x, y);
+    awardScore(target.score, target.bank.toUpperCase(), x, y);
     playSound('target', .9);
     applyTargetRule(target);
     if (target.id === 'a_targ22' && wormholes.length) {
@@ -1990,7 +1991,7 @@
         collisionState.rolloverHits += 1;
         collisionState.impacts.push({ x: rollover.x, y: rollover.y, nx: 0, ny: -1, life: 1, kind: 'rollover' });
         if (collisionState.impacts.length > 16) collisionState.impacts.shift();
-        awardScore(rollover.points, 'ROLLOVER', rollover.x, rollover.y);
+        awardScore(rollover.score, 'ROLLOVER', rollover.x, rollover.y);
         playSound('rollover', .75);
         applyRolloverRule(rollover);
         triggered = true;
