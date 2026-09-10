@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 10, 2026
-**Current position:** Stage 3.5 ready
+**Current position:** Stage 4.1 ready
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -35,7 +35,7 @@ stage changes, and record the validating test or commit for completed work.
 - [x] 3.2 Add target banks, rollovers, lane guides, gates, kickers, and slingshots. Added all 22 source targets, 18 rollovers, five active guide rails, two gates, two kickers, and two slingshots with shared projected geometry, collision responses, hit lighting, scoring, and a feature smoke harness. Commit `5753c29`; `tests/table-features-smoke.html` passes.
 - [x] 3.3 Add ramps, ramp holes, rocket/wormhole behavior, and shooter-lane exit routing. Added source-projected launch and hyperspace ramp centerlines with rail collisions, ramp rides, rocket launch feedback, a timed ramp-hole capture/re-entry path, three timed wormhole sinks with eject vectors, and a routed shooter-lane exit. Browser validation: `tests/ramps-smoke.html` passes. Commit `94c566d`.
 - [x] 3.4 Add mission/rank progression and table-specific rule state. Added nine naval ranks, 17 rotating mission definitions, timed mission lifecycle, promotion progress, target-bank rules, 1x/2x/5x/10x multiplier, fuel bar, hazard/medal/booster state, mission banner, and `tests/rules-smoke.html`. Commits `570e091`, `63c47ef`; browser validation passes.
-- [ ] 3.5 Tune collision radii, restitution, kick strength, and drain geometry against gameplay reference.
+- [x] 3.5 Tune collision radii, restitution, kick strength, and drain geometry against gameplay reference. Centralized projected-physics tuning, softened rails/bumper/kicker/flipper impulses, added target/ramp collision slop and tangential damping, and narrowed the drain capture funnel. `tests/tuning-smoke.html` plus all prior smoke tests pass. Commits `11d7174`, `67ba213`.
 
 ## Stage 4 — Visual recreation
 

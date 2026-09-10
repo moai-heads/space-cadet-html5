@@ -19,3 +19,5 @@ capture and re-entry, wormhole capture/eject behavior, rocket feedback, and
 shooter-lane exit routing.
 
 `rules-smoke.html` covers rank initialization, mission start/rotation/completion, target-practice progress, multiplier-bank steps, fuel-bar filling, and promotion progress.
+
+`tuning-smoke.html` covers shared physics constants, bounded restitution, tuned kicker/bumper/slingshot impulses, and the narrowed drain capture funnel.
