@@ -17,6 +17,7 @@
 
   const canvas = document.getElementById('game');
   if (!canvas) throw new Error('Canvas #game was not found');
+  const statusNode = document.getElementById('status');
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('Canvas 2D context is unavailable');
   const scriptUrl = document.currentScript ? new URL(document.currentScript.src, window.location.href) : null;
@@ -1160,6 +1161,7 @@
     game.stateTime = 0;
     game.lastMessage = message;
     input.paused = state === 'paused';
+    if (statusNode) statusNode.textContent = message;
   }
 
   function beginGame() {
@@ -1226,6 +1228,7 @@
   function markAction(label) {
     input.lastAction = label;
     input.lastActionAt = performance.now();
+    if (statusNode) statusNode.textContent = label;
   }
 
   function setButton(action, pressed, source = 'KEY', options = {}) {
@@ -1268,7 +1271,7 @@
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     unlockAudio();
     const action = keyAction(event.code);
-    if (action || ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyP', 'KeyH', 'KeyM', 'Enter', 'Escape'].includes(event.code)) {
+    if (action || ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyP', 'KeyH', 'KeyM', 'KeyR', 'Enter', 'Escape'].includes(event.code)) {
       event.preventDefault();
     }
 
@@ -1295,6 +1298,8 @@
       markAction(input.help ? 'HELP ON' : 'HELP OFF');
     } else if (event.code === 'KeyM') {
       toggleMute();
+    } else if (event.code === 'KeyR') {
+      startNewGame();
     } else if (event.code === 'Escape') {
       if (input.help) {
         input.help = false;
@@ -3661,6 +3666,46 @@
     ctx.restore();
   }
 
+  function drawHelpOverlay() {
+    if (!input.help) return;
+    const x = board.x + 22;
+    const y = board.y + 24;
+    const w = board.w - 44;
+    const h = board.h - 48;
+    ctx.save();
+    ctx.fillStyle = 'rgba(1, 7, 16, .94)';
+    ctx.strokeStyle = '#77d6dc';
+    ctx.shadowColor = '#39b5c1';
+    ctx.shadowBlur = 18;
+    ctx.lineWidth = 2;
+    roundedRect(x, y, w, h, 8);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.stroke();
+    pixelText('SPACE CADET HELP', x + w / 2, y + 16, 1.7, '#f0d36b', 'center');
+    text('KEYBOARD', x + 20, y + 58, 9, '#77cbd0', 'left', 800);
+    const lines = [
+      ['Z / LEFT SHIFT', 'LEFT FLIPPER'],
+      ['/ / RIGHT SHIFT', 'RIGHT FLIPPER'],
+      ['SPACE', 'CHARGE / LAUNCH'],
+      ['A D / ARROWS', 'NUDGE'],
+      ['P', 'PAUSE'],
+      ['M', 'MUTE AUDIO'],
+      ['R', 'RESTART GAME'],
+      ['ESC / H', 'CLOSE HELP'],
+    ];
+    lines.forEach(([key, action], index) => {
+      const yy = y + 76 + index * 22;
+      pixelText(key, x + 20, yy, .85, '#e4bd54');
+      pixelText(action, x + 132, yy, .85, '#b7d9d8');
+    });
+    text('TOUCH / MOUSE', x + 20, y + h - 70, 9, '#77cbd0', 'left', 800);
+    pixelText('LOWER APRON: LEFT / RIGHT / SHOOTER', x + 20, y + h - 53, .72, '#b7d9d8');
+    pixelText('BALLS', x + 20, y + h - 32, .72, '#8dbbc0');
+    for (let index = 0; index < 3; index += 1) drawLamp(x + 62 + index * 10, y + h - 28, '#e3c85f', index < game.balls, 2);
+    ctx.restore();
+  }
+
   function drawGameStateOverlay() {
     if (game.state === 'playing') return;
 
@@ -3729,6 +3774,7 @@
     drawMissionBanner();
     drawDrainStatus();
     drawGameStateOverlay();
+    drawHelpOverlay();
 
     drawVisualFlash();
     drawCrtOverlay(t);
@@ -3835,6 +3881,7 @@
   window.spaceCadetVisualTuning = VISUAL_TUNING;
   window.spaceCadetRules = rules;
   window.spaceCadetMission = mission;
+  window.spaceCadetUi = { input, statusNode };
   window.spaceCadetRanks = RANK_NAMES;
   window.spaceCadetAudioUnlock = unlockAudio;
   window.spaceCadetPlaySound = playSound;
