@@ -66,6 +66,15 @@
     targetCollisionRadius: 3.1,
     rolloverTriggerRadius: 5.4,
   });
+  const VISUAL_TUNING = Object.freeze({
+    scanlineStep: 3,
+    scanlineAlpha: 0.045,
+    vignetteAlpha: 0.30,
+    rollingLineAlpha: 0.035,
+    maxParticles: 220,
+    maxRings: 42,
+    flashDecay: 2.8,
+  });
   const tableMap = Object.freeze({
     camera: Object.freeze({
       row0: [1, 0, 0, 0],
@@ -917,6 +926,7 @@
     scoring.combo = 0;
     scoring.comboTimer = 0;
     scoring.popups.length = 0;
+    resetVisualFx();
     resetRuleState();
     resetTableFeatures();
     setGameState('ready', 'PRESS SPACE OR ENTER');
@@ -1130,6 +1140,77 @@
     comboTimer: 0,
     popups: [],
   };
+
+  // Stage 4.3: transient visual effects are separate from collision state so
+  // the renderer can add readable sparks, rings, and flashes without changing
+  // deterministic physics.
+  const visualFx = {
+    particles: [],
+    rings: [],
+    flash: 0,
+    flashColor: '#fff0a0',
+  };
+
+  function effectColor(label) {
+    const upper = String(label).toUpperCase();
+    if (upper.includes('BUMPER') || upper.includes('KICKER')) return '#f0a84d';
+    if (upper.includes('RAMP') || upper.includes('ROCKET')) return '#ffe07b';
+    if (upper.includes('WORMHOLE') || upper.includes('HYPER')) return '#76e1df';
+    if (upper.includes('DRAIN')) return '#ea6b78';
+    if (upper.includes('TARGET') || upper.includes('MISSION')) return '#d6a8f2';
+    return '#b5ecf2';
+  }
+
+  function spawnImpactFx(x, y, label = 'HIT') {
+    const color = effectColor(label);
+    const upper = String(label).toUpperCase();
+    const energy = upper.includes('BUMPER') || upper.includes('KICKER') ? 1.35 : 1;
+    const count = upper.includes('BUMPER') ? 10 : 5;
+    visualFx.rings.push({ x, y, radius: 3, growth: 28 * energy, life: 1, color });
+    if (visualFx.rings.length > VISUAL_TUNING.maxRings) visualFx.rings.shift();
+    for (let index = 0; index < count; index += 1) {
+      const angle = (index / count) * Math.PI * 2 + (x + y) * .013;
+      const speed = (24 + (index % 3) * 11) * energy;
+      visualFx.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1,
+        size: index % 3 === 0 ? 1.7 : 1.1,
+        color,
+      });
+    }
+    if (visualFx.particles.length > VISUAL_TUNING.maxParticles) {
+      visualFx.particles.splice(0, visualFx.particles.length - VISUAL_TUNING.maxParticles);
+    }
+    visualFx.flash = Math.max(visualFx.flash, upper.includes('BUMPER') ? .28 : .14);
+    visualFx.flashColor = color;
+  }
+
+  function resetVisualFx() {
+    visualFx.particles.length = 0;
+    visualFx.rings.length = 0;
+    visualFx.flash = 0;
+    visualFx.flashColor = '#fff0a0';
+  }
+
+  function updateVisualFx(dt) {
+    visualFx.flash = Math.max(0, visualFx.flash - dt * VISUAL_TUNING.flashDecay);
+    for (const particle of visualFx.particles) {
+      particle.life -= dt * 2.8;
+      particle.x += particle.vx * dt;
+      particle.y += particle.vy * dt;
+      particle.vx *= Math.exp(-dt * 2.2);
+      particle.vy *= Math.exp(-dt * 2.2);
+    }
+    visualFx.particles = visualFx.particles.filter(particle => particle.life > 0);
+    for (const ring of visualFx.rings) {
+      ring.life -= dt * 2.3;
+      ring.radius += ring.growth * dt;
+    }
+    visualFx.rings = visualFx.rings.filter(ring => ring.life > 0);
+  }
 
   function armPlunger() {
     plunger.armed = true;
@@ -1376,6 +1457,7 @@
     scoring.comboTimer = 1.5;
     scoring.popups.push({ x, y, points: value, life: 1 });
     if (scoring.popups.length > 12) scoring.popups.shift();
+    spawnImpactFx(x, y, label);
     markAction(`${label} +${value}`);
   }
 
@@ -2508,6 +2590,59 @@
     ctx.fillRect(0, 0, DESIGN_W, DESIGN_H);
   }
 
+  const DIGITAL_SEGMENTS = Object.freeze({
+    0: 'abcdef', 1: 'bc', 2: 'abdeg', 3: 'abcdg', 4: 'bcfg',
+    5: 'acdfg', 6: 'acdefg', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg',
+  });
+
+  function drawDigitalScore(value, rightX, topY, scale, color) {
+    const digits = String(value);
+    const advance = 10 * scale;
+    const width = digits.length * advance - 2 * scale;
+    const startX = rightX - width;
+    const segment = {
+      a: [2, 0, 6, 1.5],
+      b: [8, 2, 1.5, 6],
+      c: [8, 10, 1.5, 6],
+      d: [2, 16, 6, 1.5],
+      e: [0, 10, 1.5, 6],
+      f: [0, 2, 1.5, 6],
+      g: [2, 8, 6, 1.5],
+    };
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 5 * scale;
+    for (let index = 0; index < digits.length; index += 1) {
+      const digit = DIGITAL_SEGMENTS[digits[index]] || '';
+      const x = startX + index * advance;
+      for (const [name, rect] of Object.entries(segment)) {
+        ctx.fillStyle = digit.includes(name) ? color : 'rgba(46, 67, 76, .42)';
+        ctx.fillRect(x + rect[0] * scale, topY + rect[1] * scale, rect[2] * scale, rect[3] * scale);
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawBallIcon(x, y, active, radius = 6) {
+    ctx.save();
+    ctx.shadowColor = active ? '#dff8ff' : 'transparent';
+    ctx.shadowBlur = active ? 8 : 0;
+    ctx.fillStyle = active ? '#dcebed' : '#233440';
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = active ? '#f5ffff' : '#40515d';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    if (active) {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x - 2, y - 2, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   function drawScorePanel() {
     // The source DAT places score1/player/ballcount in the right-hand strip
     // of the 600×416 screen. Keep that composition instead of the temporary
@@ -2534,9 +2669,9 @@
     ctx.fillRect(p.x + 18, p.y + 55, p.w - 36, 1);
 
     text('PLAYER 1', p.x + 18, p.y + 78, 9, '#9eaab4', 'left', 400);
-    text(formatScore(game.score), p.x + p.w - 16, p.y + 100, 23, '#e0e5e8', 'right', 900);
+    drawDigitalScore(formatScore(game.score), p.x + p.w - 16, p.y + 87, 1.05, '#e0e5e8');
     text('HIGH SCORE', p.x + 18, p.y + 130, 9, '#738896', 'left', 400);
-    text(formatScore(game.highScore), p.x + p.w - 16, p.y + 151, 17, '#b7c2c7', 'right', 900);
+    drawDigitalScore(formatScore(game.highScore), p.x + p.w - 16, p.y + 138, .78, '#b7c2c7');
 
     ctx.fillStyle = '#26333e';
     ctx.fillRect(p.x + 18, p.y + 171, p.w - 36, 1);
@@ -2587,13 +2722,7 @@
     text('BALL', p.x + 18, p.y + 355, 9, '#738896', 'left', 400);
     for (let i = 0; i < 3; i++) {
       const on = i < game.balls;
-      ctx.fillStyle = on ? '#d9e0e2' : '#233440';
-      ctx.strokeStyle = on ? '#a9bcc5' : '#40515d';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(p.x + 23 + i * 21, p.y + 377, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      drawBallIcon(p.x + 23 + i * 21, p.y + 377, on, 6);
     }
     text(`DRAIN ${String(drain.total).padStart(2, '0')}`, p.x + 98, p.y + 374, 8, '#65808f', 'left', 400);
     text(`NEXT ${drain.cooldown > 0 ? `${drain.cooldown.toFixed(1)}s` : (plunger.armed ? 'READY' : 'IN PLAY')}`,
@@ -2877,6 +3006,30 @@
     pixelText('ROCKET', x, y + 17, .75, hot ? '#ffe99a' : '#759aa6', 'center');
   }
 
+  function drawTransientFx(inner) {
+    for (const ring of visualFx.rings) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, ring.life) * .75;
+      ctx.strokeStyle = ring.color;
+      ctx.shadowColor = ring.color;
+      ctx.shadowBlur = 8;
+      ctx.lineWidth = 1.2 + ring.life * 1.2;
+      ctx.beginPath();
+      ctx.arc(inner.x + ring.x, inner.y + ring.y, ring.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    for (const particle of visualFx.particles) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, particle.life);
+      ctx.fillStyle = particle.color;
+      ctx.shadowColor = particle.color;
+      ctx.shadowBlur = 5;
+      ctx.fillRect(inner.x + particle.x, inner.y + particle.y, particle.size, particle.size);
+      ctx.restore();
+    }
+  }
+
   function drawTable(t) {
     const bx = board.x;
     const by = board.y;
@@ -3081,6 +3234,7 @@
       text(`+${popup.points}`, inner.x + popup.x, inner.y + popup.y, 8, '#ffe88c', 'center');
       ctx.restore();
     }
+    drawTransientFx(inner);
 
     // Dynamic ball and a short trail, in the same screen coordinates as the
     // mapped colliders above.
@@ -3105,6 +3259,15 @@
     ctx.arc(ballX, ballY, ball.radius, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,.86)';
+    ctx.beginPath();
+    ctx.arc(ballX - 1.8, ballY - 2.1, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(25, 61, 75, .55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(ballX + 1.8, ballY + 3.8, 3.8, 1.1, 0, 0, Math.PI * 2);
+    ctx.stroke();
 
     ctx.restore();
 
@@ -3199,6 +3362,36 @@
     ctx.restore();
   }
 
+  function drawCrtOverlay(t) {
+    ctx.save();
+    ctx.globalAlpha = VISUAL_TUNING.scanlineAlpha;
+    ctx.fillStyle = '#b5eaff';
+    for (let y = 0; y < DESIGN_H; y += VISUAL_TUNING.scanlineStep) ctx.fillRect(0, y, DESIGN_W, 1);
+    ctx.globalAlpha = VISUAL_TUNING.rollingLineAlpha;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, (t * .018) % DESIGN_H, DESIGN_W, 2);
+    const vignette = ctx.createRadialGradient(300, 208, 120, 300, 208, 360);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, `rgba(0, 4, 12, ${VISUAL_TUNING.vignetteAlpha})`);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, DESIGN_W, DESIGN_H);
+    ctx.globalAlpha = .12;
+    ctx.strokeStyle = '#b5eaff';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(.5, .5, DESIGN_W - 1, DESIGN_H - 1);
+    ctx.restore();
+  }
+
+  function drawVisualFlash() {
+    if (visualFx.flash <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = visualFx.flash * .22;
+    ctx.fillStyle = visualFx.flashColor;
+    ctx.fillRect(0, 0, DESIGN_W, DESIGN_H);
+    ctx.restore();
+  }
+
   function draw(t) {
     renderFrames += 1;
     ctx.save();
@@ -3211,11 +3404,8 @@
     drawDrainStatus();
     drawGameStateOverlay();
 
-    // Very light CRT scanlines, kept below text contrast threshold.
-    ctx.globalAlpha = 0.055;
-    ctx.fillStyle = '#b5eaff';
-    for (let y = 0; y < DESIGN_H; y += 4) ctx.fillRect(0, y, DESIGN_W, 1);
-    ctx.globalAlpha = 1;
+    drawVisualFlash();
+    drawCrtOverlay(t);
     ctx.restore();
   }
 
@@ -3228,6 +3418,7 @@
     updatePlunger(dt);
     updateDrain(dt);
     updateScoring(dt);
+    updateVisualFx(dt);
     updateRuleState(dt);
     updateBumpers(dt);
     updateTableFeatures(dt);
@@ -3302,6 +3493,8 @@
   window.spaceCadetWormholeState = wormholeState;
   window.spaceCadetRocket = rocket;
   window.spaceCadetScoring = scoring;
+  window.spaceCadetVisualFx = visualFx;
+  window.spaceCadetVisualTuning = VISUAL_TUNING;
   window.spaceCadetRules = rules;
   window.spaceCadetMission = mission;
   window.spaceCadetRanks = RANK_NAMES;
