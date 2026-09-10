@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet presentation smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    iframe { display: block; width: 900px; height: 700px; border: 1px solid #1c5a7d; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <iframe id="app" title="Space Cadet presentation" src="../index.html"></iframe>
+  <pre id="result">RUNNING…</pre>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const frame = document.getElementById('app');
+      async function run() {
+        const win = frame.contentWindow;
+        const doc = frame.contentDocument;
+        const fullscreen = doc.getElementById('fullscreen');
+        const mute = doc.getElementById('mute');
+        const canvas = doc.getElementById('game');
+        const caption = doc.querySelector('.caption').textContent;
+        check('presentation toolbar is present', Boolean(fullscreen && mute));
+        check('fullscreen control is accessible', fullscreen.type === 'button' && fullscreen.getAttribute('aria-pressed') === 'false');
+        check('mute control is accessible', mute.type === 'button' && mute.getAttribute('aria-pressed') === 'false');
+        check('final control hints mention fullscreen and restart', caption.includes('F / F11') && caption.includes('R'));
+        check('fullscreen shortcut is advertised', canvas.getAttribute('aria-keyshortcuts').includes('F11'));
+        check('fullscreen API wrapper is exposed', typeof win.spaceCadetToggleFullscreen === 'function');
+
+        mute.click();
+        check('toolbar mute button toggles audio', win.spaceCadetInput.muted && mute.textContent === 'UNMUTE');
+        mute.click();
+        check('toolbar mute button restores audio', !win.spaceCadetInput.muted && mute.textContent === 'SOUND ON');
+
+        const originalRequest = doc.documentElement.requestFullscreen;
+        doc.documentElement.requestFullscreen = () => Promise.resolve();
+        const fullscreenResult = await win.spaceCadetToggleFullscreen();
+        doc.documentElement.requestFullscreen = originalRequest;
+        check('fullscreen request wrapper resolves safely', fullscreenResult === true);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+      frame.addEventListener('load', () => setTimeout(() => run().catch(error => {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }), 120), { once: true });
+    })();
+  </script>
+</body>
+</html>
