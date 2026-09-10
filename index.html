@@ -8,12 +8,15 @@
   <style>
     :root { color-scheme: dark; }
     * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; background: #02050a; }
+    html, body { margin: 0; width: 100%; min-height: 100%; background: #02050a; }
     body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 18px;
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      padding: max(12px, env(safe-area-inset-top))
+        max(12px, env(safe-area-inset-right))
+        max(12px, env(safe-area-inset-bottom))
+        max(12px, env(safe-area-inset-left));
       overflow: hidden;
       font-family: Arial, Helvetica, sans-serif;
       color: #c8e9ff;
@@ -22,25 +25,32 @@
         linear-gradient(135deg, #010207 0%, #071321 48%, #02050b 100%);
     }
     #wrap {
-      width: min(1120px, 100vw - 24px);
-      height: min(780px, 100vh - 24px);
+      width: min(1120px, calc(100vw - 24px), calc((100svh - 72px) * 1.4423077));
       display: flex;
       flex-direction: column;
       gap: 8px;
       align-items: center;
     }
-    #game {
-      display: block;
+    #screen {
       width: 100%;
-      height: calc(100% - 30px);
-      max-height: 748px;
+      aspect-ratio: 600 / 416;
+      position: relative;
       border: 1px solid #1c5a7d;
-      border-radius: 7px;
+      border-radius: 8px;
       background: #02070e;
       box-shadow:
         0 0 0 2px #071828,
         0 0 28px rgba(0, 149, 255, .16),
         0 22px 60px rgba(0,0,0,.75);
+      overflow: hidden;
+    }
+    #game {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      border-radius: 6px;
+      background: #02070e;
       touch-action: none;
       user-select: none;
       cursor: crosshair;
@@ -54,11 +64,21 @@
       opacity: .85;
     }
     .caption b { color: #e4bd54; font-weight: 700; }
+    @media (max-width: 700px) {
+      body { padding: max(8px, env(safe-area-inset-top))
+        max(8px, env(safe-area-inset-right))
+        max(8px, env(safe-area-inset-bottom))
+        max(8px, env(safe-area-inset-left)); }
+      #wrap { width: min(calc(100vw - 16px), calc((100svh - 58px) * 1.4423077)); gap: 6px; }
+      .caption { font-size: 9px; letter-spacing: 0; }
+    }
   </style>
 </head>
 <body>
   <main id="wrap">
-    <canvas id="game" width="600" height="416" aria-label="Space Cadet pinball game"></canvas>
+    <div id="screen">
+      <canvas id="game" width="600" height="416" aria-label="Space Cadet pinball game"></canvas>
+    </div>
     <div class="caption"><b>Z / LEFT SHIFT</b> left flipper&nbsp; · &nbsp;<b>/ / RIGHT SHIFT</b> right flipper&nbsp; · &nbsp;<b>SPACE</b> launch&nbsp; · &nbsp;<b>A/D or ARROWS</b> nudge&nbsp; · &nbsp;<b>P</b> pause&nbsp; · &nbsp;<b>H</b> help</div>
   </main>
   <script src="app.js"></script>
