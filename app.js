@@ -18,6 +18,8 @@
   const canvas = document.getElementById('game');
   if (!canvas) throw new Error('Canvas #game was not found');
   const statusNode = document.getElementById('status');
+  const fullscreenButton = document.getElementById('fullscreen');
+  const muteButton = document.getElementById('mute');
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('Canvas 2D context is unavailable');
   const scriptUrl = document.currentScript ? new URL(document.currentScript.src, window.location.href) : null;
@@ -617,11 +619,40 @@
   function setMuted(muted) {
     input.muted = Boolean(muted);
     updateAudioGain();
+    updateMuteUi();
     markAction(input.muted ? 'MUTE ON' : 'MUTE OFF');
   }
 
   function toggleMute() {
     setMuted(!input.muted);
+  }
+
+  function updateMuteUi() {
+    if (!muteButton) return;
+    muteButton.textContent = input.muted ? 'UNMUTE' : 'SOUND ON';
+    muteButton.setAttribute('aria-pressed', String(input.muted));
+  }
+
+  function updateFullscreenUi() {
+    const active = Boolean(document.fullscreenElement);
+    if (!fullscreenButton) return;
+    fullscreenButton.textContent = active ? 'EXIT FULLSCREEN' : 'FULLSCREEN';
+    fullscreenButton.setAttribute('aria-pressed', String(active));
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        return true;
+      }
+      if (!document.documentElement.requestFullscreen) throw new Error('Fullscreen API unavailable');
+      await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      return true;
+    } catch (error) {
+      markAction('FULLSCREEN UNAVAILABLE');
+      return false;
+    }
   }
 
   const SOUND_COOLDOWNS = Object.freeze({
@@ -1271,7 +1302,7 @@
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     unlockAudio();
     const action = keyAction(event.code);
-    if (action || ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyP', 'KeyH', 'KeyM', 'KeyR', 'Enter', 'Escape'].includes(event.code)) {
+    if (action || ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyP', 'KeyH', 'KeyM', 'KeyR', 'KeyF', 'F11', 'Enter', 'Escape'].includes(event.code)) {
       event.preventDefault();
     }
 
@@ -1300,6 +1331,8 @@
       toggleMute();
     } else if (event.code === 'KeyR') {
       startNewGame();
+    } else if (event.code === 'KeyF' || event.code === 'F11') {
+      toggleFullscreen();
     } else if (event.code === 'Escape') {
       if (input.help) {
         input.help = false;
@@ -3821,6 +3854,18 @@
   }
 
   window.addEventListener('resize', fitCanvas, { passive: true });
+  document.addEventListener('fullscreenchange', () => {
+    updateFullscreenUi();
+    markAction(document.fullscreenElement ? 'FULLSCREEN ON' : 'FULLSCREEN OFF');
+    fitCanvas();
+  });
+  if (fullscreenButton) fullscreenButton.addEventListener('click', () => toggleFullscreen());
+  if (muteButton) muteButton.addEventListener('click', () => {
+    unlockAudio();
+    toggleMute();
+  });
+  updateMuteUi();
+  updateFullscreenUi();
   window.addEventListener('keydown', onKeyDown, { passive: false });
   window.addEventListener('keyup', onKeyUp, { passive: false });
   window.addEventListener('blur', () => releaseAllControls('FOCUS RESET'));
@@ -3884,6 +3929,7 @@
   window.spaceCadetUi = { input, statusNode };
   window.spaceCadetRanks = RANK_NAMES;
   window.spaceCadetAudioUnlock = unlockAudio;
+  window.spaceCadetToggleFullscreen = toggleFullscreen;
   window.spaceCadetPlaySound = playSound;
   if (testMode) {
     window.spaceCadetTest = {
