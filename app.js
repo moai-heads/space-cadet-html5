@@ -28,6 +28,42 @@
   const REFERENCE_SCREEN = Object.freeze({ width: 600, height: 416 });
   const board = { x: 0, y: 0, w: 365, h: 416 };
   const playfield = { x: 0, y: 0, w: 365, h: 416 };
+
+  // Stage 3.5: keep physical tuning in one place. The values are expressed in
+  // the 600x416 projected screen space, then shared by every collider so a
+  // rail, bumper, flipper, or drain cannot quietly use a different feel.
+  const PHYSICS_TUNING = Object.freeze({
+    ballRadius: 5,
+    gravity: 690,
+    airDrag: 0.14,
+    maxSpeed: 610,
+    wallRestitution: 0.90,
+    shooterRestitution: 0.86,
+    guideRestitution: 0.76,
+    gateRestitution: 0.82,
+    rampRailRestitution: 0.80,
+    bumperRestitution: 1.02,
+    bumperKick: 62,
+    targetRestitution: 0.88,
+    targetKick: 34,
+    kickerKick: 320,
+    slingKick: 138,
+    flipperRadius: 5,
+    flipperRestitution: 0.88,
+    flipperActiveRestitution: 1.01,
+    flipperActiveKick: 108,
+    flipperRestKick: 16,
+    collisionSlop: 0.08,
+    tangentialDamping: 0.024,
+    drainY: 405,
+    drainMinX: 23,
+    drainMaxX: 344,
+    drainFunnelDepth: 14,
+    drainFunnelInset: 12,
+    drainCaptureDepth: 2.5,
+    targetCollisionRadius: 3.1,
+    rolloverTriggerRadius: 5.4,
+  });
   const tableMap = Object.freeze({
     camera: Object.freeze({
       row0: [1, 0, 0, 0],
@@ -138,11 +174,11 @@
   ];
 
   const guideSources = [
-    { id: 'guide-left-upper', world: [[-6.26309, 3.554958], [-6.26309, 5.064444]], restitution: 0.78 },
-    { id: 'guide-left-mid', world: [[-5.229421, 3.916008], [-5.2351, 5.364433]], restitution: 0.78 },
-    { id: 'guide-left-ramp', world: [[-3.324988, -11.956454], [-2.625601, -10.714686]], restitution: 0.82 },
-    { id: 'guide-right-ramp', world: [[2.625341, -10.714686], [3.324727, -11.956454]], restitution: 0.82 },
-    { id: 'guide-right-lane', world: [[6.408451, -0.973824], [7.663972, -4.499189]], restitution: 0.78 },
+    { id: 'guide-left-upper', world: [[-6.26309, 3.554958], [-6.26309, 5.064444]], restitution: PHYSICS_TUNING.guideRestitution },
+    { id: 'guide-left-mid', world: [[-5.229421, 3.916008], [-5.2351, 5.364433]], restitution: PHYSICS_TUNING.guideRestitution },
+    { id: 'guide-left-ramp', world: [[-3.324988, -11.956454], [-2.625601, -10.714686]], restitution: PHYSICS_TUNING.rampRailRestitution },
+    { id: 'guide-right-ramp', world: [[2.625341, -10.714686], [3.324727, -11.956454]], restitution: PHYSICS_TUNING.rampRailRestitution },
+    { id: 'guide-right-lane', world: [[6.408451, -0.973824], [7.663972, -4.499189]], restitution: PHYSICS_TUNING.guideRestitution },
   ];
 
   // Stage 3.3: source ramp planes and sink positions are reduced to stable
@@ -285,7 +321,7 @@
   }
   for (const source of tableMap.bumpers) {
     const point = projectWorldPair(source.world);
-    mappedTable.bumpers.push({ ...source, x: point.x, y: point.y, points: 100, restitution: 1.04, kick: 70, flash: 0, hitCooldown: 0, hits: 0 });
+    mappedTable.bumpers.push({ ...source, x: point.x, y: point.y, points: 100, restitution: PHYSICS_TUNING.bumperRestitution, kick: PHYSICS_TUNING.bumperKick, flash: 0, hitCooldown: 0, hits: 0 });
   }
   function polygonMetrics(points) {
     const xs = points.map(point => point.x);
@@ -402,8 +438,8 @@
     };
   }
 
-  mappedTable.targets = targetSources.map(source => mapWorldPolygon(source, { collisionRadius: 3.3 }));
-  mappedTable.rollovers = rolloverSources.map(source => mapWorldPolygon(source, { triggerRadius: 5.7 }));
+  mappedTable.targets = targetSources.map(source => mapWorldPolygon(source, { collisionRadius: PHYSICS_TUNING.targetCollisionRadius }));
+  mappedTable.rollovers = rolloverSources.map(source => mapWorldPolygon(source, { triggerRadius: PHYSICS_TUNING.rolloverTriggerRadius }));
   mappedTable.guides = guideSources.map(source => ({
     ...source,
     a: projectWorldPair(source.world[0]),
@@ -454,16 +490,16 @@
   };
   mappedTable.shooterExit.length = polylineLength(mappedTable.shooterExit.path);
   mappedTable.gates = [
-    { id: 'v_gate1', a: projectWorldPoint(6.433412, 10.528717), b: projectWorldPoint(7.605177, 9.725221), restitution: 0.86, enabled: true, flash: 0, hits: 0 },
-    { id: 'v_gate2', a: projectWorldPoint(-6.298658, 10.672674), b: projectWorldPoint(-5.213938, 11.435996), restitution: 0.86, enabled: true, flash: 0, hits: 0 },
+    { id: 'v_gate1', a: projectWorldPoint(6.433412, 10.528717), b: projectWorldPoint(7.605177, 9.725221), restitution: PHYSICS_TUNING.gateRestitution, enabled: true, flash: 0, hits: 0 },
+    { id: 'v_gate2', a: projectWorldPoint(-6.298658, 10.672674), b: projectWorldPoint(-5.213938, 11.435996), restitution: PHYSICS_TUNING.gateRestitution, enabled: true, flash: 0, hits: 0 },
   ];
   mappedTable.kickers = [
-    { id: 'a_kick1', x: 42.1, y: 377.8, radius: 10, direction: { x: 0.52, y: -0.85 }, kick: 350, points: 500, flash: 0, hitCooldown: 0, hits: 0 },
-    { id: 'a_kick2', x: 299.0, y: 378.0, radius: 10, direction: { x: -0.52, y: -0.85 }, kick: 350, points: 500, flash: 0, hitCooldown: 0, hits: 0 },
+    { id: 'a_kick1', x: 42.1, y: 377.8, radius: 10, direction: { x: 0.52, y: -0.85 }, kick: PHYSICS_TUNING.kickerKick, points: 500, flash: 0, hitCooldown: 0, hits: 0 },
+    { id: 'a_kick2', x: 299.0, y: 378.0, radius: 10, direction: { x: -0.52, y: -0.85 }, kick: PHYSICS_TUNING.kickerKick, points: 500, flash: 0, hitCooldown: 0, hits: 0 },
   ];
   mappedTable.slingshots = [
-    { id: 'left-sling', points: [{ x: 60, y: 326 }, { x: 116, y: 350 }, { x: 79, y: 381 }], direction: { x: 0.62, y: -0.78 }, kick: 150, flash: 0, hitCooldown: 0, hits: 0 },
-    { id: 'right-sling', points: [{ x: 258, y: 350 }, { x: 314, y: 326 }, { x: 295, y: 381 }], direction: { x: -0.62, y: -0.78 }, kick: 150, flash: 0, hitCooldown: 0, hits: 0 },
+    { id: 'left-sling', points: [{ x: 60, y: 326 }, { x: 116, y: 350 }, { x: 79, y: 381 }], direction: { x: 0.62, y: -0.78 }, kick: PHYSICS_TUNING.slingKick, flash: 0, hitCooldown: 0, hits: 0 },
+    { id: 'right-sling', points: [{ x: 258, y: 350 }, { x: 314, y: 326 }, { x: 295, y: 381 }], direction: { x: -0.62, y: -0.78 }, kick: PHYSICS_TUNING.slingKick, flash: 0, hitCooldown: 0, hits: 0 },
   ];
   const shooterRail = mappedTable.shooterRail;
   const tableCorners = mappedTable.tableCorners;
@@ -1020,10 +1056,10 @@
   const ballPhysics = {
     width: playfield.w,
     height: playfield.h + 34,
-    gravity: 700,
-    airDrag: 0.12,
-    maxSpeed: 620,
-    radius: 5,
+    gravity: PHYSICS_TUNING.gravity,
+    airDrag: PHYSICS_TUNING.airDrag,
+    maxSpeed: PHYSICS_TUNING.maxSpeed,
+    radius: PHYSICS_TUNING.ballRadius,
   };
   const ballSpawn = {
     // The right-side shooter lane is projected from the original plunger point.
@@ -1067,9 +1103,12 @@
   const drain = {
     // The source drain line projects just below the 416px viewport; this
     // inset keeps the playable apron visible while preserving its slope.
-    y: playfield.h - 11,
-    minX: 0,
-    maxX: playfield.w,
+    y: PHYSICS_TUNING.drainY,
+    minX: PHYSICS_TUNING.drainMinX,
+    maxX: PHYSICS_TUNING.drainMaxX,
+    funnelDepth: PHYSICS_TUNING.drainFunnelDepth,
+    funnelInset: PHYSICS_TUNING.drainFunnelInset,
+    captureDepth: PHYSICS_TUNING.drainCaptureDepth,
     cooldown: 0,
     serviceTime: 0.78,
     flash: 0,
@@ -1097,10 +1136,20 @@
     resetBallMotion(false);
   }
 
+  function drainOpeningBounds(y) {
+    const progress = Math.max(0, Math.min(1, (y - drain.y) / drain.funnelDepth));
+    return {
+      minX: drain.minX + drain.funnelInset * progress,
+      maxX: drain.maxX - drain.funnelInset * progress,
+    };
+  }
+
   function ballHasEnteredDrain() {
-    return ball.y - ball.radius > drain.y
-      && ball.x > drain.minX - ball.radius
-      && ball.x < drain.maxX + ball.radius;
+    const bottom = ball.y + ball.radius;
+    if (bottom <= drain.y + drain.captureDepth) return false;
+    const opening = drainOpeningBounds(bottom);
+    return ball.x > opening.minX - ball.radius
+      && ball.x < opening.maxX + ball.radius;
   }
 
   function drainBall(reason = 'OPEN DRAIN') {
@@ -1251,10 +1300,10 @@
   // screen space as the renderer. The bottom remains open so the drain can
   // own ball loss; a mapped shooter rail retains the source's right-side lane.
   const walls = [
-    { id: 'top-rail', a: tableCorners.topLeft, b: tableCorners.topRight, restitution: 0.92 },
-    { id: 'left-rail', a: tableCorners.topLeft, b: tableCorners.bottomLeft, restitution: 0.91 },
-    { id: 'right-rail', a: tableCorners.topRight, b: tableCorners.bottomRight, restitution: 0.91 },
-    { id: 'shooter-rail', a: shooterRail[0], b: shooterRail[1], restitution: 0.88 },
+    { id: 'top-rail', a: tableCorners.topLeft, b: tableCorners.topRight, restitution: PHYSICS_TUNING.wallRestitution },
+    { id: 'left-rail', a: tableCorners.topLeft, b: tableCorners.bottomLeft, restitution: PHYSICS_TUNING.wallRestitution },
+    { id: 'right-rail', a: tableCorners.topRight, b: tableCorners.bottomRight, restitution: PHYSICS_TUNING.wallRestitution },
+    { id: 'shooter-rail', a: shooterRail[0], b: shooterRail[1], restitution: PHYSICS_TUNING.shooterRestitution },
   ];
 
   // The seven bumper anchors come from the original a_bump1–a_bump7
@@ -1373,8 +1422,8 @@
       const tangentX = -ny;
       const tangentY = nx;
       const tangentVelocity = ball.vx * tangentX + ball.vy * tangentY;
-      ball.vx -= tangentVelocity * 0.018 * tangentX;
-      ball.vy -= tangentVelocity * 0.018 * tangentY;
+      ball.vx -= tangentVelocity * PHYSICS_TUNING.tangentialDamping * tangentX;
+      ball.vy -= tangentVelocity * PHYSICS_TUNING.tangentialDamping * tangentY;
       limitBallSpeed();
       impactRecorder(nearest.x, nearest.y, nx, ny, segment);
     }
@@ -1456,15 +1505,15 @@
     const penetration = hitRadius - distance;
     if (penetration <= 0) return false;
 
-    ball.x += nx * (penetration + 0.06);
-    ball.y += ny * (penetration + 0.06);
+    ball.x += nx * (penetration + PHYSICS_TUNING.collisionSlop);
+    ball.y += ny * (penetration + PHYSICS_TUNING.collisionSlop);
     const normalVelocity = ball.vx * nx + ball.vy * ny;
     if (normalVelocity < 0) {
-      ball.vx -= 1.88 * normalVelocity * nx;
-      ball.vy -= 1.88 * normalVelocity * ny;
+      ball.vx -= (1 + PHYSICS_TUNING.targetRestitution) * normalVelocity * nx;
+      ball.vy -= (1 + PHYSICS_TUNING.targetRestitution) * normalVelocity * ny;
     }
-    ball.vx += nx * 38;
-    ball.vy += ny * 38;
+    ball.vx += nx * PHYSICS_TUNING.targetKick;
+    ball.vy += ny * PHYSICS_TUNING.targetKick;
     limitBallSpeed();
     recordTargetImpact(target.x + nx * target.collisionRadius, target.y + ny * target.collisionRadius, nx, ny, target);
     return true;
@@ -1533,8 +1582,8 @@
     if (distance >= hitRadius) return false;
     const nx = distance > 0.0001 ? dx / distance : kicker.direction.x;
     const ny = distance > 0.0001 ? dy / distance : kicker.direction.y;
-    ball.x = kicker.x + nx * (hitRadius + 0.12);
-    ball.y = kicker.y + ny * (hitRadius + 0.12);
+    ball.x = kicker.x + nx * (hitRadius + PHYSICS_TUNING.collisionSlop);
+    ball.y = kicker.y + ny * (hitRadius + PHYSICS_TUNING.collisionSlop);
     ball.vx = kicker.direction.x * kicker.kick + ball.vx * 0.12;
     ball.vy = kicker.direction.y * kicker.kick + ball.vy * 0.12;
     limitBallSpeed();
@@ -1626,7 +1675,7 @@
         collided = collideBallWithSegment({
           a: rail[i - 1],
           b: rail[i],
-          restitution: 0.84,
+          restitution: PHYSICS_TUNING.rampRailRestitution,
         }, (x, y, nx, ny) => recordRampRailImpact(x, y, nx, ny, ramp)) || collided;
       }
     }
@@ -2040,7 +2089,7 @@
       side: 'left',
       pivot: mappedTable.flippers.left.pivot,
       length: mappedTable.flippers.left.length,
-      radius: 5,
+      radius: PHYSICS_TUNING.flipperRadius,
       restAngle: mappedTable.flippers.left.restAngle,
       activeAngle: mappedTable.flippers.left.activeAngle,
       angle: mappedTable.flippers.left.restAngle,
@@ -2052,7 +2101,7 @@
       side: 'right',
       pivot: mappedTable.flippers.right.pivot,
       length: mappedTable.flippers.right.length,
-      radius: 5,
+      radius: PHYSICS_TUNING.flipperRadius,
       restAngle: mappedTable.flippers.right.restAngle,
       activeAngle: mappedTable.flippers.right.activeAngle,
       angle: mappedTable.flippers.right.restAngle,
@@ -2133,10 +2182,10 @@
     const normalVelocity = relativeVx * nx + relativeVy * ny;
 
     if (normalVelocity < 0 && flipper.hitCooldown <= 0) {
-      const restitution = flipper.pressed ? 1.03 : 0.90;
+      const restitution = flipper.pressed ? PHYSICS_TUNING.flipperActiveRestitution : PHYSICS_TUNING.flipperRestitution;
       ball.vx = relativeVx - (1 + restitution) * normalVelocity * nx + surfaceVx;
       ball.vy = relativeVy - (1 + restitution) * normalVelocity * ny + surfaceVy;
-      const kick = flipper.pressed ? 115 : 18;
+      const kick = flipper.pressed ? PHYSICS_TUNING.flipperActiveKick : PHYSICS_TUNING.flipperRestKick;
       ball.vx += nx * kick;
       ball.vy += ny * kick;
       limitBallSpeed();
@@ -2801,8 +2850,8 @@
     drawSlingshotGraphics(inner);
     drawKickerGraphics(inner);
 
-    const drainLeft = 23;
-    const drainRight = 344;
+    const drainLeft = drain.minX;
+    const drainRight = drain.maxX;
     const drainY = drain.y;
     ctx.fillStyle = 'rgba(0, 4, 9, .90)';
     ctx.beginPath();
@@ -3045,6 +3094,7 @@
   window.spaceCadetGame = game;
   window.spaceCadetBall = ball;
   window.spaceCadetPhysics = ballPhysics;
+  window.spaceCadetTuning = PHYSICS_TUNING;
   window.spaceCadetWalls = walls;
   window.spaceCadetCollisionState = collisionState;
   window.spaceCadetFlippers = flippers;
