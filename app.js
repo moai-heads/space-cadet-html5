@@ -4,6 +4,8 @@
  * collisions, flippers, game state, plunger lane, drain/respawn, scoring hooks,
  * and the source 600×416 table coordinate map. Stage 3.2 adds active
  * target banks, rollovers, lane guides, gates, kickers, and slingshots.
+ * Stage 3.3 adds mapped ramps, ramp-hole capture, wormhole sinks, rocket
+ * launch feedback, and shooter-lane exit routing.
  */
 (() => {
   'use strict';
@@ -141,6 +143,101 @@
     { id: 'guide-right-lane', world: [[6.408451, -0.973824], [7.663972, -4.499189]], restitution: 0.78 },
   ];
 
+  // Stage 3.3: source ramp planes and sink positions are reduced to stable
+  // centerlines here. The full source table still owns the camera projection;
+  // these paths preserve the playable entry/exit shape without importing the
+  // original bitmap or runtime assets.
+  const rampSources = [
+    {
+      id: 'ramp',
+      kind: 'launch',
+      label: 'LAUNCH RAMP',
+      worldPath: [
+        [3.296382, 1.232470],
+        [3.381792, 0.997584],
+        [3.581364, 0.463746],
+        [3.777676, -0.006016],
+        [3.912348, -0.187517],
+        [4.039313, -0.370893],
+        [4.217121, -0.529171],
+        [4.394761, -0.676098],
+      ],
+      width: 15,
+      speed: 178,
+      points: 5000,
+      color: '#d7c262',
+      accent: '#fff0a5',
+    },
+    {
+      id: 's_ramp9',
+      kind: 'hyperspace',
+      label: 'HYPERSPACE',
+      worldPath: [
+        [-6.374070, -1.032808],
+        [-6.200000, -2.100000],
+        [-5.900000, -3.500000],
+        [-5.500000, -5.200000],
+        [-5.000000, -7.000000],
+        [-4.400000, -8.700000],
+        [-3.747841, -10.334387],
+        [-3.044567, -10.786441],
+      ],
+      width: 18,
+      speed: 214,
+      points: 3500,
+      color: '#6bc8d0',
+      accent: '#bdf8f3',
+    },
+  ];
+
+  const holeSources = [
+    {
+      id: 'ramp-hole',
+      label: 'RAMP HOLE',
+      worldCenter: [5.870174, 7.607636],
+      radius: 11,
+      captureTime: 0.44,
+      points: 1000,
+      route: 'ramp',
+    },
+  ];
+
+  const wormholeSources = [
+    {
+      id: 'v_sink1',
+      label: 'YELLOW',
+      worldCenter: [-2.618267, -8.828711],
+      color: '#e8ca5c',
+      accent: '#fff1a2',
+      eject: { x: -0.48, y: -0.88 },
+      radius: 11,
+      captureTime: 0.48,
+      points: 10000,
+    },
+    {
+      id: 'v_sink2',
+      label: 'RED',
+      worldCenter: [3.171890, -9.757203],
+      color: '#d85e72',
+      accent: '#ffadb2',
+      eject: { x: 0.46, y: -0.89 },
+      radius: 11,
+      captureTime: 0.48,
+      points: 10000,
+    },
+    {
+      id: 'v_sink3',
+      label: 'GREEN',
+      worldCenter: [-4.714430, 3.329021],
+      color: '#69c98a',
+      accent: '#baffbf',
+      eject: { x: 0.74, y: 0.36 },
+      radius: 11,
+      captureTime: 0.48,
+      points: 10000,
+    },
+  ];
+
   const mappedTable = {
     plunger: projectWorldPair([tableMap.plunger.x, tableMap.plunger.y]),
     tableCorners: {
@@ -165,6 +262,10 @@
     gates: [],
     kickers: [],
     slingshots: [],
+    ramps: [],
+    holes: [],
+    wormholes: [],
+    shooterExit: null,
   };
   for (const side of ['left', 'right']) {
     const source = tableMap.flippers[side];
@@ -200,6 +301,86 @@
     };
   }
 
+  function mapWorldPolyline(worldPath) {
+    return worldPath.map(projectWorldPair);
+  }
+
+  function polylineLength(points) {
+    let length = 0;
+    for (let i = 1; i < points.length; i += 1) {
+      length += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    }
+    return length;
+  }
+
+  function polylineSample(points, progress) {
+    if (points.length === 1) return { x: points[0].x, y: points[0].y, tangentX: 1, tangentY: 0 };
+    const clamped = Math.max(0, Math.min(1, progress));
+    const total = polylineLength(points) || 1;
+    let distance = total * clamped;
+    for (let i = 1; i < points.length; i += 1) {
+      const a = points[i - 1];
+      const b = points[i];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const segmentLength = Math.hypot(dx, dy) || 1;
+      if (distance <= segmentLength || i === points.length - 1) {
+        const t = Math.max(0, Math.min(1, distance / segmentLength));
+        return {
+          x: a.x + dx * t,
+          y: a.y + dy * t,
+          tangentX: dx / segmentLength,
+          tangentY: dy / segmentLength,
+        };
+      }
+      distance -= segmentLength;
+    }
+    const last = points[points.length - 1];
+    const before = points[points.length - 2];
+    const dx = last.x - before.x;
+    const dy = last.y - before.y;
+    const length = Math.hypot(dx, dy) || 1;
+    return { x: last.x, y: last.y, tangentX: dx / length, tangentY: dy / length };
+  }
+
+  function nearestPointOnPolyline(x, y, points) {
+    let best = { distance: Infinity, progress: 0, x: points[0].x, y: points[0].y, tangentX: 1, tangentY: 0 };
+    const total = polylineLength(points) || 1;
+    let traversed = 0;
+    for (let i = 1; i < points.length; i += 1) {
+      const a = points[i - 1];
+      const b = points[i];
+      const nearest = closestPointOnSegment(x, y, a.x, a.y, b.x, b.y);
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const segmentLength = Math.hypot(dx, dy) || 1;
+      const distance = Math.hypot(x - nearest.x, y - nearest.y);
+      if (distance < best.distance) {
+        best = {
+          distance,
+          progress: (traversed + segmentLength * nearest.t) / total,
+          x: nearest.x,
+          y: nearest.y,
+          tangentX: dx / segmentLength,
+          tangentY: dy / segmentLength,
+        };
+      }
+      traversed += segmentLength;
+    }
+    return best;
+  }
+
+  function offsetPolyline(points, offset) {
+    return points.map((point, index) => {
+      const before = points[Math.max(0, index - 1)];
+      const after = points[Math.min(points.length - 1, index + 1)];
+      const dx = after.x - before.x;
+      const dy = after.y - before.y;
+      const length = Math.hypot(dx, dy) || 1;
+      return { x: point.x - dy / length * offset, y: point.y + dx / length * offset };
+    });
+  }
+
   function mapWorldPolygon(source, options = {}) {
     const points = source.world.map(projectWorldPair);
     const bounds = polygonMetrics(points);
@@ -229,6 +410,47 @@
     flash: 0,
     hits: 0,
   }));
+  mappedTable.ramps = rampSources.map(source => {
+    const path = mapWorldPolyline(source.worldPath);
+    const entry = path[0];
+    const exit = path[path.length - 1];
+    return {
+      ...source,
+      path,
+      entry: { x: entry.x, y: entry.y },
+      exit: { x: exit.x, y: exit.y },
+      length: polylineLength(path),
+      rails: [offsetPolyline(path, source.width / 2), offsetPolyline(path, -source.width / 2)],
+      flash: 0,
+      cooldown: 0,
+      hits: 0,
+      active: false,
+    };
+  });
+  mappedTable.holes = holeSources.map(source => {
+    const center = projectWorldPair(source.worldCenter);
+    return { ...source, x: center.x, y: center.y, flash: 0, hitCooldown: 0, hits: 0, active: true };
+  });
+  mappedTable.wormholes = wormholeSources.map(source => {
+    const center = projectWorldPair(source.worldCenter);
+    return { ...source, x: center.x, y: center.y, flash: 0, hitCooldown: 0, hits: 0, active: true };
+  });
+  mappedTable.shooterExit = {
+    id: 'shooter-exit',
+    path: [
+      { x: mappedTable.plunger.x, y: mappedTable.shooterRail[0].y + 5 },
+      { x: mappedTable.plunger.x - 16, y: mappedTable.shooterRail[0].y - 4 },
+      { x: mappedTable.plunger.x - 36, y: mappedTable.shooterRail[0].y - 18 },
+      { x: 253, y: mappedTable.shooterRail[0].y - 34 },
+      { x: 229, y: mappedTable.shooterRail[0].y - 37 },
+    ],
+    length: 0,
+    flash: 0,
+    cooldown: 0,
+    hits: 0,
+    active: false,
+  };
+  mappedTable.shooterExit.length = polylineLength(mappedTable.shooterExit.path);
   mappedTable.gates = [
     { id: 'v_gate1', a: projectWorldPoint(6.433412, 10.528717), b: projectWorldPoint(7.605177, 9.725221), restitution: 0.86, enabled: true, flash: 0, hits: 0 },
     { id: 'v_gate2', a: projectWorldPoint(-6.298658, 10.672674), b: projectWorldPoint(-5.213938, 11.435996), restitution: 0.86, enabled: true, flash: 0, hits: 0 },
@@ -348,6 +570,7 @@
       writeHighScore();
     }
     ball.active = false;
+    ball.transport = null;
     setGameState('gameover', 'PRESS ENTER TO RESTART');
     markAction('GAME OVER');
   }
@@ -487,6 +710,9 @@
     age: 0,
     resets: 0,
     trail: [],
+    transport: null,
+    routeGrace: 0,
+    shooterExited: false,
   };
 
   // Stage 2.8: shooter lane and spring plunger. Holding Space compresses
@@ -587,6 +813,9 @@
     plunger.armed = false;
     plunger.charge = 0;
     ball.active = true;
+    ball.transport = null;
+    ball.routeGrace = 0;
+    ball.shooterExited = false;
     ball.x = plunger.laneX;
     ball.y = plunger.laneBottom - 2;
     ball.previousX = ball.x;
@@ -622,6 +851,9 @@
     ball.vy = activate ? -360 : 0;
     ball.age = 0;
     ball.active = activate;
+    ball.transport = null;
+    ball.routeGrace = 0;
+    ball.shooterExited = false;
     ball.resets += 1;
     ball.trail.length = 0;
     markAction('BALL RESET');
@@ -637,6 +869,10 @@
 
   function simulateBall(dt) {
     if (!ball.active || input.paused || game.state !== 'playing') return;
+    if (ball.transport) {
+      updateBallTransport(dt);
+      return;
+    }
 
     ball.previousX = ball.x;
     ball.previousY = ball.y;
@@ -656,6 +892,7 @@
     collideBallWithWalls();
     collideBallWithBumpers();
     collideBallWithTableFeatures();
+    if (ball.transport) return;
     collideBallWithFlippers();
     limitBallSpeed();
 
@@ -697,6 +934,22 @@
   const gates = mappedTable.gates;
   const kickers = mappedTable.kickers;
   const slingshots = mappedTable.slingshots;
+  const ramps = mappedTable.ramps;
+  const holes = mappedTable.holes;
+  const wormholes = mappedTable.wormholes;
+  const shooterExit = mappedTable.shooterExit;
+
+  const wormholeState = {
+    destination: 0,
+    flash: 0,
+    lastEntry: '',
+  };
+  const rocket = {
+    x: ramps[0].exit.x + 43,
+    y: ramps[0].exit.y - 8,
+    flash: 0,
+    launches: 0,
+  };
 
   const collisionState = {
     wallHits: 0,
@@ -708,6 +961,11 @@
     gateHits: 0,
     kickerHits: 0,
     slingshotHits: 0,
+    rampRailHits: 0,
+    rampHits: 0,
+    rampHoleHits: 0,
+    wormholeHits: 0,
+    shooterExits: 0,
     impacts: [],
   };
 
@@ -840,6 +1098,12 @@
     collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'target' });
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(target.points, target.bank.toUpperCase(), x, y);
+    if (target.id === 'a_targ22' && wormholes.length) {
+      wormholeState.destination = (wormholeState.destination + 1) % wormholes.length;
+      wormholeState.flash = 1;
+      game.lastMessage = `${wormholes[wormholeState.destination].label} WORMHOLE OPEN`;
+      markAction(`WORMHOLE ${wormholeState.destination + 1}`);
+    }
   }
 
   function collideBallWithTarget(target) {
@@ -1001,8 +1265,292 @@
     return collided;
   }
 
+  function normalizedVector(vector) {
+    const length = Math.hypot(vector.x, vector.y) || 1;
+    return { x: vector.x / length, y: vector.y / length };
+  }
+
+  function recordRampRailImpact(x, y, nx, ny, ramp) {
+    collisionState.rampRailHits += 1;
+    ramp.flash = 1;
+    collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'ramp-rail' });
+    if (collisionState.impacts.length > 16) collisionState.impacts.shift();
+    awardScore(20, 'RAMP RAIL', x, y);
+  }
+
+  function collideBallWithRampRails(ramp) {
+    let collided = false;
+    for (const rail of ramp.rails) {
+      for (let i = 1; i < rail.length; i += 1) {
+        collided = collideBallWithSegment({
+          a: rail[i - 1],
+          b: rail[i],
+          restitution: 0.84,
+        }, (x, y, nx, ny) => recordRampRailImpact(x, y, nx, ny, ramp)) || collided;
+      }
+    }
+    return collided;
+  }
+
+  function startRampRide(ramp, progress = 0, fromHole = false) {
+    if (!ramp || ramp.cooldown > 0 || ball.transport) return false;
+    const sample = polylineSample(ramp.path, progress);
+    ramp.active = true;
+    ramp.flash = 1;
+    ramp.cooldown = 0.70;
+    ramp.hits += 1;
+    collisionState.rampHits += 1;
+    ball.transport = {
+      type: 'ramp',
+      ramp,
+      progress: Math.max(0, Math.min(0.94, progress)),
+      speed: ramp.speed,
+      fromHole,
+    };
+    ball.x = sample.x;
+    ball.y = sample.y;
+    ball.previousX = ball.x;
+    ball.previousY = ball.y;
+    ball.vx = 0;
+    ball.vy = 0;
+    if (!fromHole) awardScore(ramp.points, ramp.kind === 'launch' ? 'LAUNCH RAMP' : 'HYPERSPACE', ball.x, ball.y);
+    game.lastMessage = ramp.kind === 'launch' ? 'LAUNCH RAMP — ROCKET RUN' : 'HYPERSPACE RAMP';
+    markAction(ramp.label);
+    return true;
+  }
+
+  function tryStartRampRide(ramp) {
+    if (ramp.cooldown > 0 || ball.transport || ball.routeGrace > 0) return false;
+    const nearest = nearestPointOnPolyline(ball.x, ball.y, ramp.path);
+    const corridor = ramp.width * 0.60 + ball.radius;
+    if (nearest.distance > corridor) return false;
+    const along = ball.vx * nearest.tangentX + ball.vy * nearest.tangentY;
+    const entryWindow = nearest.progress < 0.22 && along > -160;
+    if (!entryWindow && along < 18) return false;
+    return startRampRide(ramp, nearest.progress);
+  }
+
+  function startRampHoleCapture(hole) {
+    if (hole.hitCooldown > 0 || ball.transport) return false;
+    hole.flash = 1;
+    hole.hitCooldown = 0.25;
+    hole.hits += 1;
+    collisionState.rampHoleHits += 1;
+    ball.transport = {
+      type: 'hole',
+      hole,
+      elapsed: 0,
+      duration: hole.captureTime,
+    };
+    ball.x = hole.x;
+    ball.y = hole.y;
+    ball.previousX = ball.x;
+    ball.previousY = ball.y;
+    ball.vx = 0;
+    ball.vy = 0;
+    awardScore(hole.points, 'RAMP HOLE', hole.x, hole.y);
+    game.lastMessage = 'RAMP HOLE — BALL CAPTURED';
+    markAction('RAMP HOLE');
+    return true;
+  }
+
+  function startWormholeCapture(wormhole) {
+    if (wormhole.hitCooldown > 0 || ball.transport) return false;
+    wormhole.flash = 1;
+    wormhole.hitCooldown = 0.90;
+    wormhole.hits += 1;
+    collisionState.wormholeHits += 1;
+    wormholeState.lastEntry = wormhole.label;
+    ball.transport = {
+      type: 'wormhole',
+      wormhole,
+      elapsed: 0,
+      duration: wormhole.captureTime,
+    };
+    ball.x = wormhole.x;
+    ball.y = wormhole.y;
+    ball.previousX = ball.x;
+    ball.previousY = ball.y;
+    ball.vx = 0;
+    ball.vy = 0;
+    awardScore(wormhole.points, `${wormhole.label} WORMHOLE`, wormhole.x, wormhole.y);
+    game.lastMessage = `${wormhole.label} WORMHOLE — CAPTURED`;
+    markAction(`${wormhole.label} WORMHOLE`);
+    return true;
+  }
+
+  function startShooterExit() {
+    if (ball.transport || ball.shooterExited || shooterExit.cooldown > 0 || !shooterExit) return false;
+    const start = shooterExit.path[0];
+    if (ball.y > start.y + 9 || ball.x < plunger.laneX - ball.radius * 2 || ball.vy >= 0) return false;
+    shooterExit.active = true;
+    shooterExit.flash = 1;
+    shooterExit.cooldown = 0.60;
+    shooterExit.hits += 1;
+    collisionState.shooterExits += 1;
+    ball.transport = {
+      type: 'shooter',
+      path: shooterExit.path,
+      progress: 0,
+      speed: 278,
+    };
+    ball.x = start.x;
+    ball.y = start.y;
+    ball.previousX = ball.x;
+    ball.previousY = ball.y;
+    ball.vx = 0;
+    ball.vy = 0;
+    game.lastMessage = 'SHOOTER EXIT — BALL IN PLAY';
+    markAction('SHOOTER EXIT');
+    return true;
+  }
+
+  function updateBallTransport(dt) {
+    if (!ball.transport) return;
+    const transport = ball.transport;
+    ball.previousX = ball.x;
+    ball.previousY = ball.y;
+    if (transport.type === 'ramp') {
+      const ramp = transport.ramp;
+      transport.progress += transport.speed * dt / (ramp.length || 1);
+      const sample = polylineSample(ramp.path, transport.progress);
+      ball.x = sample.x;
+      ball.y = sample.y;
+      ball.vx = sample.tangentX * transport.speed;
+      ball.vy = sample.tangentY * transport.speed;
+      if (transport.progress >= 1) {
+        ramp.active = false;
+        ramp.flash = 1;
+        const exit = polylineSample(ramp.path, 1);
+        ball.transport = null;
+        ball.x = exit.x + exit.tangentX * 2;
+        ball.y = exit.y + exit.tangentY * 2;
+        ball.vx = exit.tangentX * (ramp.kind === 'launch' ? 230 : 255);
+        ball.vy = exit.tangentY * (ramp.kind === 'launch' ? 230 : 255);
+        ball.shooterExited = false;
+        if (ramp.kind === 'launch') {
+          rocket.flash = 1;
+          rocket.launches += 1;
+          game.lastMessage = 'ROCKET LAUNCH — +5000';
+          markAction('ROCKET LAUNCH');
+        } else {
+          game.lastMessage = 'HYPERSPACE RETURN';
+          markAction('HYPERSPACE RETURN');
+        }
+      }
+    } else if (transport.type === 'hole') {
+      const hole = transport.hole;
+      transport.elapsed += dt;
+      const pulse = Math.sin(transport.elapsed * 34) * Math.max(0, 1 - transport.elapsed / transport.duration) * 2.2;
+      ball.x = hole.x + pulse;
+      ball.y = hole.y + Math.cos(transport.elapsed * 28) * Math.max(0, 1 - transport.elapsed / transport.duration) * 1.7;
+      ball.vx = 0;
+      ball.vy = 0;
+      if (transport.elapsed >= transport.duration) {
+        const ramp = ramps.find(item => item.id === hole.route);
+        ball.transport = null;
+        if (ramp) {
+          ball.x = ramp.entry.x;
+          ball.y = ramp.entry.y;
+          startRampRide(ramp, 0, true);
+        } else {
+          resetBallMotion();
+        }
+      }
+    } else if (transport.type === 'wormhole') {
+      const wormhole = transport.wormhole;
+      transport.elapsed += dt;
+      const swirl = Math.max(0, 1 - transport.elapsed / transport.duration);
+      const angle = transport.elapsed * 28;
+      ball.x = wormhole.x + Math.cos(angle) * swirl * 4;
+      ball.y = wormhole.y + Math.sin(angle) * swirl * 4;
+      ball.vx = 0;
+      ball.vy = 0;
+      wormholeState.flash = 1;
+      if (transport.elapsed >= transport.duration) {
+        const eject = normalizedVector(wormhole.eject);
+        ball.transport = null;
+        ball.x = wormhole.x + eject.x * (wormhole.radius + ball.radius + 1);
+        ball.y = wormhole.y + eject.y * (wormhole.radius + ball.radius + 1);
+        ball.vx = eject.x * 238;
+        ball.vy = eject.y * 238;
+        wormhole.hitCooldown = 0.90;
+        ball.routeGrace = 0.45;
+        game.lastMessage = `${wormhole.label} WORMHOLE — EJECTED`;
+        markAction(`${wormhole.label} EJECT`);
+      }
+    } else if (transport.type === 'shooter') {
+      transport.progress += transport.speed * dt / (shooterExit.length || 1);
+      const sample = polylineSample(transport.path, transport.progress);
+      ball.x = sample.x;
+      ball.y = sample.y;
+      ball.vx = sample.tangentX * transport.speed;
+      ball.vy = sample.tangentY * transport.speed;
+      if (transport.progress >= 1) {
+        shooterExit.active = false;
+        shooterExit.flash = 1;
+        const exit = polylineSample(transport.path, 1);
+        ball.transport = null;
+        ball.x = exit.x;
+        ball.y = exit.y;
+        ball.vx = exit.tangentX * 165;
+        ball.vy = exit.tangentY * 165;
+        ball.routeGrace = 0.45;
+        ball.shooterExited = true;
+      }
+    }
+    ball.trail.push({ x: ball.x, y: ball.y, life: 1 });
+    if (ball.trail.length > 10) ball.trail.shift();
+    for (const point of ball.trail) point.life *= 0.90;
+  }
+
+  function collideBallWithRamps() {
+    let collided = false;
+    for (const ramp of ramps) {
+      if (tryStartRampRide(ramp)) return true;
+    }
+    for (const ramp of ramps) collided = collideBallWithRampRails(ramp) || collided;
+    return collided;
+  }
+
+  function collideBallWithRampHole(hole) {
+    const distance = Math.hypot(ball.x - hole.x, ball.y - hole.y);
+    if (distance > hole.radius + ball.radius) return false;
+    return startRampHoleCapture(hole);
+  }
+
+  function collideBallWithHoles() {
+    let collided = false;
+    for (const hole of holes) collided = collideBallWithRampHole(hole) || collided;
+    return collided;
+  }
+
+  function collideBallWithWormhole(wormhole) {
+    const distance = Math.hypot(ball.x - wormhole.x, ball.y - wormhole.y);
+    if (distance > wormhole.radius + ball.radius) return false;
+    return startWormholeCapture(wormhole);
+  }
+
+  function collideBallWithWormholes() {
+    let collided = false;
+    for (const wormhole of wormholes) collided = collideBallWithWormhole(wormhole) || collided;
+    return collided;
+  }
+
+  function collideBallWithShooterExit() {
+    return startShooterExit();
+  }
+
   function collideBallWithTableFeatures() {
     let collided = false;
+    collided = collideBallWithRamps() || collided;
+    if (ball.transport) return true;
+    collided = collideBallWithHoles() || collided;
+    if (ball.transport) return true;
+    collided = collideBallWithWormholes() || collided;
+    if (ball.transport) return true;
+    collided = collideBallWithShooterExit() || collided;
+    if (ball.transport) return true;
     collided = collideBallWithGuides() || collided;
     collided = collideBallWithGates() || collided;
     collided = collideBallWithTargets() || collided;
@@ -1082,6 +1630,24 @@
       sling.flash = Math.max(0, sling.flash - dt * 5.5);
       sling.hitCooldown = Math.max(0, sling.hitCooldown - dt);
     }
+    for (const ramp of ramps) {
+      ramp.flash = Math.max(0, ramp.flash - dt * 4.5);
+      ramp.cooldown = Math.max(0, ramp.cooldown - dt);
+      if (ramp.cooldown === 0) ramp.active = false;
+    }
+    for (const hole of holes) {
+      hole.flash = Math.max(0, hole.flash - dt * 4.5);
+      hole.hitCooldown = Math.max(0, hole.hitCooldown - dt);
+    }
+    for (const wormhole of wormholes) {
+      wormhole.flash = Math.max(0, wormhole.flash - dt * 4.2);
+      wormhole.hitCooldown = Math.max(0, wormhole.hitCooldown - dt);
+    }
+    shooterExit.flash = Math.max(0, shooterExit.flash - dt * 4.5);
+    shooterExit.cooldown = Math.max(0, shooterExit.cooldown - dt);
+    rocket.flash = Math.max(0, rocket.flash - dt * 3.6);
+    wormholeState.flash = Math.max(0, wormholeState.flash - dt * 2.8);
+    if (ball.shooterExited && ball.y > shooterExit.path[0].y + 58) ball.shooterExited = false;
   }
 
   function resetTableFeatures() {
@@ -1105,6 +1671,18 @@
     for (const gate of gates) { gate.flash = 0; gate.hits = 0; gate.enabled = true; }
     for (const kicker of kickers) { kicker.flash = 0; kicker.hitCooldown = 0; kicker.hits = 0; }
     for (const sling of slingshots) { sling.flash = 0; sling.hitCooldown = 0; sling.hits = 0; }
+    for (const ramp of ramps) { ramp.flash = 0; ramp.cooldown = 0; ramp.hits = 0; ramp.active = false; }
+    for (const hole of holes) { hole.flash = 0; hole.hitCooldown = 0; hole.hits = 0; }
+    for (const wormhole of wormholes) { wormhole.flash = 0; wormhole.hitCooldown = 0; wormhole.hits = 0; }
+    shooterExit.flash = 0;
+    shooterExit.cooldown = 0;
+    shooterExit.hits = 0;
+    shooterExit.active = false;
+    rocket.flash = 0;
+    rocket.launches = 0;
+    wormholeState.destination = 0;
+    wormholeState.flash = 0;
+    wormholeState.lastEntry = '';
   }
 
   // Stage 2.7 + 3.1: flipper pivots, travel, and angles are derived from
@@ -1397,12 +1975,13 @@
 
     const lights = [
       ['TARGETS', targets.some(target => target.lit || target.flash > 0)],
-      ['ROLLOVERS', rollovers.some(rollover => rollover.lit)],
+      ['RAMPS', ramps.some(ramp => ramp.hits > 0 || ramp.flash > 0)],
+      ['WORMHOLE', wormholes.some(wormhole => wormhole.hits > 0 || wormhole.flash > 0)],
       ['SLINGS', collisionState.slingshotHits > 0],
-      ['KICKERS', collisionState.kickerHits > 0],
+      ['ROCKET', rocket.launches > 0 || rocket.flash > 0],
     ];
     lights.forEach(([label, on], i) => {
-      const yy = p.y + 255 + i * 20;
+      const yy = p.y + 247 + i * 17;
       ctx.fillStyle = on ? '#dfc35e' : '#273b47';
       ctx.shadowColor = on ? '#ffe98a' : 'transparent';
       ctx.shadowBlur = on ? 7 : 0;
@@ -1564,6 +2143,149 @@
     }
   }
 
+  function drawPolyline(points, inner, stroke, width, shadow = 0, dash = []) {
+    if (!points.length) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = width;
+    ctx.shadowColor = shadow ? stroke : 'transparent';
+    ctx.shadowBlur = shadow;
+    if (dash.length) ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(inner.x + points[0].x, inner.y + points[0].y);
+    for (let i = 1; i < points.length; i += 1) ctx.lineTo(inner.x + points[i].x, inner.y + points[i].y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawRampGraphics(inner) {
+    for (const ramp of ramps) {
+      const hot = ramp.flash > 0 || ramp.active;
+      const base = hot ? ramp.accent : ramp.color;
+      drawPolyline(ramp.path, inner, 'rgba(8, 21, 31, .88)', ramp.width + 6, 0);
+      drawPolyline(ramp.path, inner, `rgba(91, 166, 177, ${hot ? '.72' : '.38'})`, ramp.width, hot ? 6 : 0);
+      for (const rail of ramp.rails) drawPolyline(rail, inner, hot ? '#fff0a0' : '#bed5d5', hot ? 2.3 : 1.5, hot ? 8 : 2);
+      drawPolyline(ramp.path, inner, base, hot ? 2 : 1, hot ? 8 : 0, [3, 4]);
+      const mid = polylineSample(ramp.path, 0.52);
+      text(ramp.kind === 'launch' ? 'RAMP' : 'HYPER', inner.x + mid.x, inner.y + mid.y - 7, 6,
+        hot ? '#fff0a5' : '#8bb8be', 'center', 800);
+      const exit = polylineSample(ramp.path, 1);
+      ctx.save();
+      ctx.fillStyle = hot ? '#fff0a5' : '#d8e5dd';
+      ctx.shadowColor = hot ? '#fff0a5' : 'transparent';
+      ctx.shadowBlur = hot ? 9 : 0;
+      ctx.beginPath();
+      ctx.arc(inner.x + exit.x, inner.y + exit.y, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawRampHoleGraphics(inner) {
+    for (const hole of holes) {
+      const hot = hole.flash > 0;
+      const x = inner.x + hole.x;
+      const y = inner.y + hole.y;
+      ctx.save();
+      ctx.shadowColor = hot ? '#ffe58b' : '#7a3f7c';
+      ctx.shadowBlur = hot ? 15 : 7;
+      ctx.fillStyle = '#050916';
+      ctx.beginPath();
+      ctx.arc(x, y, hole.radius + 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = hot ? '#fff0a0' : '#b35c9a';
+      ctx.lineWidth = hot ? 2.5 : 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, hole.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = hot ? '#f1c760' : '#6c3b75';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, hole.radius - 4, 0.2, Math.PI * 1.7);
+      ctx.stroke();
+      ctx.restore();
+      text('RAMP', x, y - hole.radius - 8, 5, hot ? '#ffe89a' : '#9f728e', 'center', 800);
+    }
+  }
+
+  function drawWormholeGraphics(inner, t) {
+    wormholes.forEach((wormhole, index) => {
+      const selected = wormholeState.destination === index;
+      const hot = wormhole.flash > 0 || selected || wormholeState.flash > 0 && selected;
+      const x = inner.x + wormhole.x;
+      const y = inner.y + wormhole.y;
+      ctx.save();
+      ctx.shadowColor = hot ? wormhole.accent : wormhole.color;
+      ctx.shadowBlur = hot ? 16 : 7;
+      ctx.fillStyle = '#050713';
+      ctx.beginPath();
+      ctx.arc(x, y, wormhole.radius + 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = hot ? wormhole.accent : wormhole.color;
+      ctx.lineWidth = hot ? 2.2 : 1.2;
+      ctx.beginPath();
+      ctx.arc(x, y, wormhole.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = wormhole.color;
+      const spin = t * 0.004 + index * 1.4;
+      ctx.beginPath();
+      ctx.arc(x, y, wormhole.radius - 3, spin, spin + Math.PI * 1.35);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, wormhole.radius - 6, spin + Math.PI, spin + Math.PI * 2.45);
+      ctx.stroke();
+      ctx.fillStyle = hot ? wormhole.accent : wormhole.color;
+      ctx.beginPath();
+      ctx.arc(x, y, 3.2 + (hot ? 1.2 : 0), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      text(wormhole.label[0], x, y + 1, 5, '#101827', 'center', 900);
+    });
+  }
+
+  function drawShooterExitGraphic(inner) {
+    const hot = shooterExit.flash > 0 || shooterExit.active;
+    drawPolyline(shooterExit.path, inner, hot ? '#ffe98f' : 'rgba(123, 192, 197, .64)', hot ? 2.2 : 1.2, hot ? 8 : 2, [4, 4]);
+    const end = shooterExit.path[shooterExit.path.length - 1];
+    text('EXIT', inner.x + end.x, inner.y + end.y - 7, 5, hot ? '#ffe98f' : '#7aaeb7', 'center', 800);
+  }
+
+  function drawRocketGraphic(inner) {
+    const hot = rocket.flash > 0;
+    const x = inner.x + rocket.x;
+    const y = inner.y + rocket.y;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-0.18);
+    ctx.shadowColor = hot ? '#ffe58c' : '#7fb6c0';
+    ctx.shadowBlur = hot ? 15 : 4;
+    ctx.fillStyle = hot ? '#f1c95e' : '#9abac0';
+    ctx.beginPath();
+    ctx.moveTo(0, -9);
+    ctx.quadraticCurveTo(5, -3, 4, 4);
+    ctx.lineTo(0, 8);
+    ctx.lineTo(-4, 4);
+    ctx.quadraticCurveTo(-5, -3, 0, -9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#315e71';
+    ctx.beginPath();
+    ctx.arc(0, -3, 1.7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = hot ? '#fff0a4' : '#d36d63';
+    ctx.beginPath();
+    ctx.moveTo(-3, 7);
+    ctx.lineTo(0, 14 + (hot ? 5 : 0));
+    ctx.lineTo(3, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    text('ROCKET', x, y + 17, 5, hot ? '#ffe99a' : '#759aa6', 'center', 800);
+  }
+
   function drawTable(t) {
     const bx = board.x;
     const by = board.y;
@@ -1661,28 +2383,13 @@
     drawRolloverGraphics(inner);
     drawTargetGraphics(inner);
 
-    // A pair of curved ramp outlines reserves the source ramp lanes visually.
-    ctx.strokeStyle = '#b7d1d1';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(118, 294);
-    ctx.bezierCurveTo(85, 242, 74, 174, 107, 95);
-    ctx.bezierCurveTo(126, 54, 153, 42, 176, 43);
-    ctx.stroke();
-    ctx.strokeStyle = '#2b7080';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(118, 294);
-    ctx.bezierCurveTo(85, 242, 74, 174, 107, 95);
-    ctx.bezierCurveTo(126, 54, 153, 42, 176, 43);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(182, 216, 217, .74)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(245, 284);
-    ctx.bezierCurveTo(268, 240, 288, 197, 289, 144);
-    ctx.lineTo(289, 104);
-    ctx.stroke();
+    // Stage 3.3: mapped ramp centerlines, ramp hole, wormhole sinks, and the
+    // shooter exit all use the same projected coordinates as their colliders.
+    drawRampGraphics(inner);
+    drawRampHoleGraphics(inner);
+    drawWormholeGraphics(inner, t);
+    drawShooterExitGraphic(inner);
+    drawRocketGraphic(inner);
 
     // Shooter lane, mapped plunger, spring, and a short launch indicator.
     const plungerX = plunger.laneX;
@@ -1891,6 +2598,7 @@
     // Fixed-step clock + first real simulated object.
     simTime += dt;
     simTicks += 1;
+    ball.routeGrace = Math.max(0, ball.routeGrace - dt);
     if (game.state !== 'paused') game.stateTime += dt;
     updatePlunger(dt);
     updateDrain(dt);
@@ -1960,6 +2668,12 @@
   window.spaceCadetGates = gates;
   window.spaceCadetKickers = kickers;
   window.spaceCadetSlingshots = slingshots;
+  window.spaceCadetRamps = ramps;
+  window.spaceCadetRampHoles = holes;
+  window.spaceCadetWormholes = wormholes;
+  window.spaceCadetShooterExit = shooterExit;
+  window.spaceCadetWormholeState = wormholeState;
+  window.spaceCadetRocket = rocket;
   window.spaceCadetScoring = scoring;
   if (testMode) {
     window.spaceCadetTest = {

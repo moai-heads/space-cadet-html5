@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet ramps smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const results = [];
+      const step = seconds => window.spaceCadetTest.step(seconds);
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const game = window.spaceCadetGame;
+      const ball = window.spaceCadetBall;
+      const ramps = window.spaceCadetRamps;
+      const holes = window.spaceCadetRampHoles;
+      const wormholes = window.spaceCadetWormholes;
+      const shooterExit = window.spaceCadetShooterExit;
+      const rocket = window.spaceCadetRocket;
+      const collisions = window.spaceCadetCollisionState;
+      const placeBall = (point, vx = 0, vy = 0) => {
+        ball.active = true;
+        ball.transport = null;
+        ball.shooterExited = false;
+        ball.x = point.x;
+        ball.y = point.y;
+        ball.previousX = ball.x;
+        ball.previousY = ball.y;
+        ball.vx = vx;
+        ball.vy = vy;
+        window.spaceCadetPlunger.armed = false;
+      };
+
+      function run() {
+        check('two source ramps mapped', ramps.length === 2);
+        check('ramp hole mapped from source position', holes.length === 1 && holes[0].x > 60 && holes[0].x < 90);
+        check('three wormhole sinks mapped', wormholes.length === 3);
+        check('shooter exit path mapped', shooterExit.path.length === 5 && shooterExit.length > 50);
+
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter' }));
+        step(0.02);
+        check('ramp test starts a game', game.state === 'playing');
+
+        const launchRamp = ramps.find(ramp => ramp.kind === 'launch');
+        const rampHits = launchRamp.hits;
+        placeBall(launchRamp.entry);
+        step(0.01);
+        check('launch ramp captures ball at entry',
+          launchRamp.hits === rampHits + 1 && ball.transport && ball.transport.type === 'ramp');
+        step(launchRamp.length / launchRamp.speed + 0.12);
+        check('launch ramp ejects and triggers rocket',
+          !ball.transport && rocket.launches === 1 && collisions.rampHits === 1);
+
+        const hole = holes[0];
+        const holeHits = hole.hits;
+        placeBall(hole);
+        step(0.01);
+        check('ramp hole captures ball',
+          hole.hits === holeHits + 1 && ball.transport && ball.transport.type === 'hole');
+        step(hole.captureTime + 0.02);
+        check('ramp hole routes into launch ramp',
+          ball.transport && ball.transport.type === 'ramp' && launchRamp.hits === rampHits + 2);
+
+        const wormhole = wormholes[0];
+        const wormHits = wormhole.hits;
+        placeBall(wormhole);
+        step(0.01);
+        check('wormhole captures ball',
+          wormhole.hits === wormHits + 1 && ball.transport && ball.transport.type === 'wormhole');
+        step(wormhole.captureTime + 0.02);
+        check('wormhole ejects ball with a throw vector',
+          !ball.transport && Math.hypot(ball.vx, ball.vy) > 150 && collisions.wormholeHits === 1);
+
+        const shooterHits = collisions.shooterExits;
+        placeBall(shooterExit.path[0], 0, -180);
+        step(0.01);
+        check('shooter lane routes through mapped exit',
+          shooterExit.hits === 1 && collisions.shooterExits === shooterHits + 1
+            && ball.transport && ball.transport.type === 'shooter');
+        step(shooterExit.length / 278 + 0.04);
+        check('shooter exit returns ball to playfield',
+          !ball.transport && ball.shooterExited && Math.hypot(ball.vx, ball.vy) > 100);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
