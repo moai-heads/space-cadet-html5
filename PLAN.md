@@ -107,7 +107,7 @@ check passes.
   rails, three large bumper housings, and top entry lanes. Added the dark
   upper-deck silhouette, red/blue cradle rails, three large dome bumpers,
   entry-lane guides, and upper-deck lamps. `tests/deck-layers-smoke.html` passes;
-  preview is generated outside Git; checkpoint commit follows.
+  preview is generated outside Git; commit `1b5eff8`.
 - [-] **8.7 Bridge occlusion (≤4 min):** add raised rails, underside darkness,
   support shadows, and narrow visible lower lanes under the bridges.
 - [ ] **8.8 Deck-aware feature metadata (≤4 min):** tag bumpers, targets,
