@@ -14,6 +14,8 @@
  * Stage 8 adds the supplied-reference raised-deck redesign; Stage 8.10 adds
  * deck-aware ball routing across ramps, bridges, and raised access lanes.
  * Stage 8.11 adds a reference-mapped lower apron, slings, kickers, and flippers.
+ * Stage 8.12 centralizes the raised-deck palette and adds chrome, lamp,
+ * bumper, and glow tuning for the supplied purple/teal/red reference.
  */
 (() => {
   'use strict';
@@ -211,6 +213,42 @@
     maxParticles: 220,
     maxRings: 42,
     flashDecay: 2.8,
+  });
+
+  // Stage 8.12: keep the supplied reference's dominant color relationships
+  // in one place. These are procedural approximations, not copied pixels.
+  const DECK_PALETTE = Object.freeze({
+    ink: '#040611',
+    navy: '#07172f',
+    navyMid: '#0a2a49',
+    purpleDeep: '#2b174f',
+    purple: '#7040a0',
+    purpleMid: '#8d4fb3',
+    purpleHot: '#e06dc7',
+    tealDeep: '#0d3b56',
+    teal: '#58cbd0',
+    tealHot: '#a7f5eb',
+    redDeep: '#40122b',
+    red: '#c44e73',
+    redHot: '#ff929d',
+    gold: '#e4bd58',
+    goldHot: '#fff0a6',
+    chrome: '#e4eff0',
+    chromeShade: '#38586c',
+    reactor: '#2d8d9c',
+    reactorDark: '#092038',
+    lampOff: '#243b49',
+    rail: Object.freeze({
+      purple: '#cf65c2',
+      teal: '#61d4d5',
+      red: '#c94f73',
+    }),
+    feature: Object.freeze({
+      purple: '#a981df',
+      teal: '#69d1d4',
+      red: '#e87587',
+      gold: '#e8c35f',
+    }),
   });
   const tableMap = Object.freeze({
     camera: Object.freeze({
@@ -3346,15 +3384,15 @@
   function drawDeckLowerApronArt(inner, t) {
     const pulse = .5 + .5 * Math.sin(t * .0031);
     const shadow = DECK_APRON_REFERENCE.silhouette.map(([x, y]) => [x + 5, y + 8]);
-    drawDeckPolygon(shadow, inner, 'rgba(0, 2, 10, .90)', '#080718', 2);
+    drawDeckPolygon(shadow, inner, 'rgba(0, 2, 10, .90)', DECK_PALETTE.ink, 2);
 
     const apronTop = drawDeckPoint(mapDeckPoint([0, 334]), inner);
     const apronBottom = drawDeckPoint(mapDeckPoint([0, 482]), inner);
     const apronGradient = ctx.createLinearGradient(apronTop.x, apronTop.y, apronBottom.x, apronBottom.y);
-    apronGradient.addColorStop(0, '#24174d');
+    apronGradient.addColorStop(0, DECK_PALETTE.purpleDeep);
     apronGradient.addColorStop(.34, '#18133a');
     apronGradient.addColorStop(.76, '#0c0b24');
-    apronGradient.addColorStop(1, '#050713');
+    apronGradient.addColorStop(1, DECK_PALETTE.ink);
     drawDeckPolygon(DECK_APRON_REFERENCE.silhouette, inner, apronGradient, '#744a9d', 1.4);
 
     const leftGradient = ctx.createLinearGradient(0, apronTop.y, inner.x + 122, apronBottom.y);
@@ -3375,10 +3413,10 @@
 
     // Long edge rails make the apron read as a recessed bed rather than a
     // single flat polygon. The paired lamps echo the reference's hardware.
-    drawDeckPolyline([[22, 348], [64, 334], [124, 374], [151, 407]], inner, '#e484d0', 2.2, 7);
-    drawDeckPolyline([[218, 374], [278, 334], [320, 348]], inner, '#b76cc7', 2.2, 6);
-    drawDeckPolyline([[27, 357], [65, 346], [117, 380]], inner, 'rgba(45, 197, 211, .86)', 1.2, 4);
-    drawDeckPolyline([[225, 380], [277, 346], [315, 357]], inner, 'rgba(79, 185, 207, .78)', 1.2, 4);
+    drawDeckChromeRail([[22, 348], [64, 334], [124, 374], [151, 407]], inner, DECK_PALETTE.rail.purple, 2.2);
+    drawDeckChromeRail([[218, 374], [278, 334], [320, 348]], inner, DECK_PALETTE.rail.purple, 2.2);
+    drawDeckChromeRail([[27, 357], [65, 346], [117, 380]], inner, DECK_PALETTE.rail.teal, 1.2);
+    drawDeckChromeRail([[225, 380], [277, 346], [315, 357]], inner, DECK_PALETTE.rail.teal, 1.2);
 
     const leftLamps = [[31, 358], [48, 349], [68, 350], [91, 366], [113, 385]];
     const rightLamps = [[229, 385], [251, 366], [274, 350], [294, 349], [311, 358]];
@@ -3392,8 +3430,8 @@
     const throat = drawDeckPoint(mapDeckPoint([171, 449]), inner);
     ctx.save();
     ctx.translate(throat.x, throat.y);
-    ctx.strokeStyle = `rgba(103, 208, 215, ${(0.44 + pulse * .32).toFixed(3)})`;
-    ctx.shadowColor = '#55c6d4';
+    ctx.strokeStyle = `rgba(88, 203, 208, ${(0.44 + pulse * .32).toFixed(3)})`;
+    ctx.shadowColor = DECK_PALETTE.teal;
     ctx.shadowBlur = 5;
     ctx.lineWidth = 1.1;
     ctx.beginPath();
@@ -3527,10 +3565,10 @@
     ctx.clip();
 
     const base = ctx.createLinearGradient(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h);
-    base.addColorStop(0, '#081531');
-    base.addColorStop(.32, '#071f3d');
+    base.addColorStop(0, DECK_PALETTE.navy);
+    base.addColorStop(.32, DECK_PALETTE.navyMid);
     base.addColorStop(.72, '#06152d');
-    base.addColorStop(1, '#030816');
+    base.addColorStop(1, DECK_PALETTE.ink);
     ctx.fillStyle = base;
     ctx.fillRect(viewport.x, viewport.y, viewport.w, viewport.h);
 
@@ -3554,14 +3592,14 @@
     ];
     const pulse = .48 + .18 * Math.sin(t * .002);
     veins.forEach((path, index) => {
-      const color = index % 2 ? `rgba(74, 190, 226, ${pulse.toFixed(3)})` : 'rgba(97, 119, 213, .52)';
+      const color = index % 2 ? `rgba(88, 203, 208, ${pulse.toFixed(3)})` : 'rgba(112, 78, 173, .58)';
       const mapped = mapDeckPath(path).map(point => drawDeckPoint(point, inner));
       ctx.beginPath();
       ctx.moveTo(mapped[0].x, mapped[0].y);
       for (let i = 1; i < mapped.length; i += 1) ctx.lineTo(mapped[i].x, mapped[i].y);
       ctx.strokeStyle = color;
       ctx.lineWidth = index % 2 ? 1.1 : .8;
-      ctx.shadowColor = index % 2 ? '#37b7db' : '#6673ce';
+      ctx.shadowColor = index % 2 ? DECK_PALETTE.teal : DECK_PALETTE.purple;
       ctx.shadowBlur = 4;
       ctx.stroke();
     });
@@ -3571,10 +3609,10 @@
     const center = drawDeckPoint(reactor.centerPoint, inner);
     const radius = reactor.radius * deckViewport.scale;
     const reactorGradient = ctx.createRadialGradient(center.x - radius * .2, center.y - radius * .2, 2, center.x, center.y, radius);
-    reactorGradient.addColorStop(0, '#4c9eae');
-    reactorGradient.addColorStop(.34, '#1f6178');
-    reactorGradient.addColorStop(.72, '#14344f');
-    reactorGradient.addColorStop(1, '#071224');
+    reactorGradient.addColorStop(0, '#58b9bc');
+    reactorGradient.addColorStop(.34, DECK_PALETTE.reactor);
+    reactorGradient.addColorStop(.72, DECK_PALETTE.tealDeep);
+    reactorGradient.addColorStop(1, DECK_PALETTE.reactorDark);
     ctx.shadowColor = '#2e9eaa';
     ctx.shadowBlur = 12;
     ctx.fillStyle = reactorGradient;
@@ -3602,7 +3640,8 @@
       const angle = index / 16 * Math.PI * 2 + t * .00016;
       const lampX = center.x + Math.cos(angle) * radius * .68;
       const lampY = center.y + Math.sin(angle) * radius * .68;
-      drawLamp(lampX, lampY, index % 3 === 0 ? '#e8783b' : '#d6b449', index % 5 !== 0, Math.max(1.4, 2.2 * deckViewport.scale));
+      const lampColors = [DECK_PALETTE.gold, DECK_PALETTE.redHot, DECK_PALETTE.teal, DECK_PALETTE.purpleHot];
+      drawLamp(lampX, lampY, lampColors[index % lampColors.length], index % 5 !== 0, Math.max(1.4, 2.2 * deckViewport.scale));
     }
 
     // Lower apron silhouette; the actual flippers remain in the original
@@ -3672,6 +3711,15 @@
     for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
     ctx.stroke();
     ctx.restore();
+  }
+
+  function drawDeckChromeRail(refPoints, inner, accent, width = 2) {
+    // Dark tube + colored body + one restrained white glint gives the narrow
+    // cover-style rails a metallic edge without turning them into solid white.
+    drawDeckPolyline(refPoints, inner, DECK_PALETTE.ink, width + 7, 0);
+    drawDeckPolyline(refPoints, inner, DECK_PALETTE.chromeShade, width + 4, 0);
+    drawDeckPolyline(refPoints, inner, accent, width, 6);
+    drawDeckPolyline(refPoints, inner, 'rgba(255,255,255,.54)', Math.max(.45, width * .20), 0);
   }
 
   function drawDeckAccessRouteGuides(inner, t) {
@@ -3751,32 +3799,48 @@
     const point = drawDeckPoint(mapDeckPoint([refX, refY]), inner);
     const radius = refRadius * deckViewport.scale;
     const pulse = .5 + .5 * Math.sin(t * .003 + refX);
+    const housing = palette.housing || DECK_PALETTE.chrome;
+    const hotRing = palette.glow || DECK_PALETTE.teal;
     ctx.save();
-    ctx.shadowColor = palette.glow;
-    ctx.shadowBlur = 9 + pulse * 4;
-    ctx.fillStyle = '#eef1e9';
+    ctx.shadowColor = hotRing;
+    ctx.shadowBlur = 8 + pulse * 5;
+    ctx.fillStyle = housing;
     ctx.beginPath();
-    ctx.arc(point.x, point.y, radius + 2.5, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, radius + 2.8, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = palette.rim;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = palette.rim || DECK_PALETTE.chrome;
+    ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, radius + 1.1, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = palette.core;
+    const core = ctx.createRadialGradient(
+      point.x - radius * .28, point.y - radius * .34, 1,
+      point.x, point.y, radius * .72,
+    );
+    core.addColorStop(0, DECK_PALETTE.goldHot);
+    core.addColorStop(.22, palette.core);
+    core.addColorStop(.78, palette.core);
+    core.addColorStop(1, DECK_PALETTE.redDeep);
+    ctx.fillStyle = core;
     ctx.beginPath();
-    ctx.arc(point.x, point.y, radius * .53, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, radius * .62, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#f5d3e5';
-    ctx.lineWidth = .8;
+    ctx.strokeStyle = hotRing;
+    ctx.lineWidth = .9;
     ctx.beginPath();
-    ctx.arc(point.x, point.y, radius * .28, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, radius * .36, 0, Math.PI * 2);
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.86)';
     ctx.beginPath();
-    ctx.arc(point.x - radius * .30, point.y - radius * .34, Math.max(1, radius * .15), 0, Math.PI * 2);
+    ctx.arc(point.x - radius * .29, point.y - radius * .34, Math.max(1, radius * .14), 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = hotRing;
+    ctx.lineWidth = 1.2 + pulse * .6;
+    ctx.globalAlpha = .42 + pulse * .45;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius + 5 + pulse * 2, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -3814,9 +3878,9 @@
       drawLamp(point.x, point.y, index % 2 ? '#e45baa' : '#a96dde', (Math.floor(t * .004 + index) % 3) !== 0, 1.55);
     }
 
-    drawDeckIslandBumper(28, 224, 10, inner, t, { rim: '#e7b0e0', core: '#bd3c78', glow: '#f26bc8' });
-    drawDeckIslandBumper(73, 228, 11, inner, t, { rim: '#d9b5f1', core: '#8c3d9f', glow: '#d97df1' });
-    drawDeckIslandBumper(112, 204, 11, inner, t, { rim: '#e8b4df', core: '#cb416e', glow: '#f174bd' });
+    drawDeckIslandBumper(28, 224, 10, inner, t, { housing: DECK_PALETTE.chrome, rim: '#e7b0e0', core: '#bd3c78', glow: DECK_PALETTE.purpleHot });
+    drawDeckIslandBumper(73, 228, 11, inner, t, { housing: '#eee8f2', rim: '#d9b5f1', core: '#8c3d9f', glow: DECK_PALETTE.purpleHot });
+    drawDeckIslandBumper(112, 204, 11, inner, t, { housing: '#f0e9ed', rim: '#e8b4df', core: '#cb416e', glow: DECK_PALETTE.redHot });
 
     // The island mouth points back to the lower bed and will become a real
     // deck transfer lane in Stage 8.9.
@@ -3852,12 +3916,10 @@
     // The reference has a red cradle surrounding the upper playfield.
     const redRail = '#c64e76';
     const redHot = '#ff9a9e';
-    drawDeckPolyline([[39, 57], [30, 78], [31, 101], [44, 125], [66, 146]], inner, '#240f2d', 6, 0);
-    drawDeckPolyline([[39, 57], [30, 78], [31, 101], [44, 125], [66, 146]], inner, redRail, 2.6, 6);
-    drawDeckPolyline([[272, 36], [292, 61], [300, 87], [294, 112], [278, 141], [244, 160]], inner, '#240f2d', 6, 0);
-    drawDeckPolyline([[272, 36], [292, 61], [300, 87], [294, 112], [278, 141], [244, 160]], inner, redRail, 2.6, 6);
-    drawDeckPolyline([[49, 47], [42, 73], [45, 103], [58, 125]], inner, '#5bc0cf', 1.5, 3);
-    drawDeckPolyline([[263, 43], [280, 67], [285, 91], [278, 119], [258, 143]], inner, '#5bc0cf', 1.5, 3);
+    drawDeckChromeRail([[39, 57], [30, 78], [31, 101], [44, 125], [66, 146]], inner, redRail, 2.6);
+    drawDeckChromeRail([[272, 36], [292, 61], [300, 87], [294, 112], [278, 141], [244, 160]], inner, redRail, 2.6);
+    drawDeckChromeRail([[49, 47], [42, 73], [45, 103], [58, 125]], inner, DECK_PALETTE.rail.teal, 1.5);
+    drawDeckChromeRail([[263, 43], [280, 67], [285, 91], [278, 119], [258, 143]], inner, DECK_PALETTE.rail.teal, 1.5);
 
     // Three entry lanes converge on the bumper cluster. They are visual routes
     // now; physics handoff is intentionally scheduled for Stage 8.9/8.10.
@@ -3880,9 +3942,9 @@
     }
     pixelText('UPPER', drawDeckPoint(mapDeckPoint([171, 48]), inner).x, drawDeckPoint(mapDeckPoint([171, 48]), inner).y - 12, .62, '#a4c2d6', 'center');
 
-    drawDeckIslandBumper(78, 84, 14, inner, t, { rim: '#e5d8ec', core: '#b53f76', glow: '#f079ba' });
-    drawDeckIslandBumper(173, 80, 15, inner, t, { rim: '#e6e4e2', core: '#ba445d', glow: '#f17a9b' });
-    drawDeckIslandBumper(172, 127, 14, inner, t, { rim: '#dfd7eb', core: '#974596', glow: '#d47ce2' });
+    drawDeckIslandBumper(78, 84, 14, inner, t, { housing: '#f0eef0', rim: '#e5d8ec', core: '#b53f76', glow: DECK_PALETTE.redHot });
+    drawDeckIslandBumper(173, 80, 15, inner, t, { housing: '#f4f0ee', rim: '#e6e4e2', core: '#ba445d', glow: DECK_PALETTE.redHot });
+    drawDeckIslandBumper(172, 127, 14, inner, t, { housing: '#ebe9f0', rim: '#dfd7eb', core: '#974596', glow: DECK_PALETTE.purpleHot });
   }
 
   function drawDeckRaisedPass(inner, t) {
@@ -3900,10 +3962,8 @@
 
     const rightOuter = [[229, 130], [305, 153], [301, 184], [286, 219], [273, 258], [245, 302]];
     const rightInner = [[244, 151], [283, 163], [286, 186], [276, 220], [259, 257], [244, 281]];
-    drawDeckPolyline(rightOuter, inner, '#260e2c', 7, 0);
-    drawDeckPolyline(rightOuter, inner, '#c64f73', 2.5, 7);
-    drawDeckPolyline(rightInner, inner, '#1c4b65', 5, 0);
-    drawDeckPolyline(rightInner, inner, `rgba(104, 216, 218, ${(0.70 + hot * .20).toFixed(3)})`, 1.5, 5);
+    drawDeckChromeRail(rightOuter, inner, DECK_PALETTE.rail.red, 2.5);
+    drawDeckChromeRail(rightInner, inner, DECK_PALETTE.rail.teal, 1.5);
 
     const redCrossbars = [
       [[247, 151], [283, 163]],
@@ -3915,14 +3975,47 @@
 
     const leftOuter = [[18, 277], [58, 259], [103, 264], [128, 292], [114, 337]];
     const leftInner = [[31, 294], [61, 278], [95, 282], [111, 300], [101, 327]];
-    drawDeckPolyline(leftOuter, inner, '#26102f', 6, 0);
-    drawDeckPolyline(leftOuter, inner, '#b65bb5', 2.3, 6);
-    drawDeckPolyline(leftInner, inner, '#3c6a83', 4, 0);
-    drawDeckPolyline(leftInner, inner, '#7bd7d1', 1.1, 4);
+    drawDeckChromeRail(leftOuter, inner, DECK_PALETTE.rail.purple, 2.3);
+    drawDeckChromeRail(leftInner, inner, DECK_PALETTE.rail.teal, 1.1);
 
     for (const pointRef of [[246, 157], [270, 166], [280, 195], [265, 236], [247, 275]]) {
       const point = drawDeckPoint(mapDeckPoint(pointRef), inner);
       drawLamp(point.x, point.y, '#d65c78', true, 1.35);
+    }
+  }
+
+  function drawDeckPaletteAccents(inner, t) {
+    const reactor = mappedDeckSections.centerReactor;
+    const center = drawDeckPoint(reactor.centerPoint, inner);
+    const radius = reactor.radius * deckViewport.scale;
+    const phase = t * .00022;
+    const arcs = [
+      { color: DECK_PALETTE.rail.teal, start: -.9 + phase, end: .15 + phase },
+      { color: DECK_PALETTE.rail.red, start: 1.0 + phase, end: 2.05 + phase },
+      { color: DECK_PALETTE.rail.purple, start: 2.75 + phase, end: 3.62 + phase },
+    ];
+    ctx.save();
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = 'round';
+    for (const arc of arcs) {
+      ctx.strokeStyle = arc.color;
+      ctx.shadowColor = arc.color;
+      ctx.shadowBlur = 5;
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, radius + 3.5, arc.start, arc.end);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Three transition lamps make the level-change colors agree with the
+    // raised rails instead of falling back to the legacy gold-only treatment.
+    const transitionColors = [DECK_PALETTE.rail.purple, DECK_PALETTE.rail.teal, DECK_PALETTE.rail.red];
+    for (let index = 0; index < mappedDeckAccessGuides.length; index += 1) {
+      const guide = mappedDeckAccessGuides[index];
+      const point = guide.path[Math.min(guide.transitionAt, guide.path.length - 1)];
+      const mapped = drawDeckPoint(point, inner);
+      drawLamp(mapped.x, mapped.y, transitionColors[index % transitionColors.length],
+        (Math.floor(t * .003 + index) % 4) !== 0, 1.7);
     }
   }
 
@@ -4682,6 +4775,7 @@
     drawDeckRaisedPass(inner, t);
     drawDeckAccessRouteGuides(inner, t);
     drawDeckBridgeTopPass(inner, t);
+    drawDeckPaletteAccents(inner, t);
     drawDeckLowerApronFeatures(inner, t);
     drawTransientFx(inner);
 
@@ -4981,6 +5075,7 @@
 
   // Exposed only for later stages and quick browser smoke tests.
   window.spaceCadetDeckPasses = DECK_RENDER_PASSES;
+  window.spaceCadetDeckPalette = DECK_PALETTE;
   window.spaceCadetDeckFeatureMetadata = {
     bumpers: mappedTable.bumpers,
     targets: mappedTable.targets,

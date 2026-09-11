@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet deck palette smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const palette = window.spaceCadetDeckPalette;
+      const test = window.spaceCadetTest;
+      const canvas = document.getElementById('game');
+
+      function hex(value) { return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value); }
+
+      function run() {
+        check('raised-deck palette is exposed as named colors',
+          palette && [palette.ink, palette.navy, palette.purple, palette.teal,
+            palette.red, palette.gold, palette.chrome].every(hex));
+        check('purple, teal, and red rail accents remain distinct',
+          palette && hex(palette.rail.purple) && hex(palette.rail.teal) && hex(palette.rail.red)
+          && new Set(Object.values(palette.rail)).size === 3);
+        check('feature colors include all reference signal families',
+          palette && palette.feature
+          && [palette.feature.purple, palette.feature.teal, palette.feature.red, palette.feature.gold].every(hex));
+        check('chrome and glow colors are not collapsed into the table ink',
+          palette && palette.chrome !== palette.ink && palette.chromeShade !== palette.ink
+          && palette.purpleHot !== palette.purple && palette.tealHot !== palette.teal);
+
+        test.render();
+        const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+        let visiblePixels = 0;
+        let saturatedAccentPixels = 0;
+        for (let index = 0; index < pixels.length; index += 4) {
+          const r = pixels[index];
+          const g = pixels[index + 1];
+          const b = pixels[index + 2];
+          if (r + g + b > 36) visiblePixels += 1;
+          if (Math.max(r, g, b) - Math.min(r, g, b) > 46 && Math.max(r, g, b) > 85) saturatedAccentPixels += 1;
+        }
+        check('palette pass still renders a dense visible table', visiblePixels > 15000, `visible=${visiblePixels}`);
+        check('palette pass preserves colored feature contrast', saturatedAccentPixels > 5000, `accent=${saturatedAccentPixels}`);
+        check('render completed in test mode', test.renderFrames >= 1);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
