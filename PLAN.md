@@ -102,7 +102,7 @@ check passes.
   silhouette with shadowed supports, a bright front lip, three procedural
   dome bumpers, perimeter lamps, and a marked lower-bed access mouth.
   `tests/deck-layers-smoke.html` passes; preview is generated outside Git;
-  checkpoint commit follows.
+  commit `ec46585`.
 - [-] **8.6 Upper bumper deck (≤4 min):** draw the dark top deck, red cradle
   rails, three large bumper housings, and top entry lanes.
 - [ ] **8.7 Bridge occlusion (≤4 min):** add raised rails, underside darkness,
