@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet performance smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; width: 100%; height: 100%; background: #02070e; }
+    body { overflow: hidden; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: min(100vw, 900px); height: auto; aspect-ratio: 600 / 416; }
+    #result { position: fixed; inset: 0 auto auto 0; margin: 0; padding: 8px; background: rgba(0,0,0,.82); white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416" tabindex="0" aria-label="Space Cadet performance test"></canvas>
+  <script src="../app.js?test=1"></script>
+  <pre id="result">RUNNING…</pre>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      function run() {
+        const input = window.spaceCadetInput;
+        const audio = window.spaceCadetAudio;
+        const test = window.spaceCadetTest;
+        const canvas = document.getElementById('game');
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter', bubbles: true, cancelable: true }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Enter', key: 'Enter', bubbles: true, cancelable: true }));
+        const t0 = performance.now();
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyZ', key: 'KeyZ', bubbles: true, cancelable: true }));
+        const inputLatency = performance.now() - t0;
+        const flipperResponded = input.left;
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyZ', key: 'KeyZ', bubbles: true, cancelable: true }));
+        check('input state changes synchronously after unlock', flipperResponded && inputLatency < 300, `${inputLatency.toFixed(2)}ms`);
+        check('audio unlock path responds to a gesture', audio.unlocked || audio.state === 'unsupported');
+        check('runtime canvas is present at logical resolution', canvas.width === 600 && canvas.height === 416);
+
+        for (let index = 0; index < 2; index += 1) test.render();
+        const renderStart = performance.now();
+        for (let index = 0; index < 3; index += 1) test.render();
+        const renderElapsed = performance.now() - renderStart;
+        check('3 logical frames render within headless budget', renderElapsed < 2500, `${renderElapsed.toFixed(1)}ms`);
+        check('renderer frame counter advances', test.renderFrames >= 5);
+
+        const simulationStart = performance.now();
+        for (let index = 0; index < 240; index += 1) test.step(1 / 120);
+        const simulationElapsed = performance.now() - simulationStart;
+        check('240 fixed simulation ticks stay within budget', simulationElapsed < 500, `${simulationElapsed.toFixed(1)}ms`);
+        check('simulation state remains finite', Number.isFinite(window.spaceCadetBall.x)
+          && Number.isFinite(window.spaceCadetBall.y) && Number.isFinite(window.spaceCadetGame.score));
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>

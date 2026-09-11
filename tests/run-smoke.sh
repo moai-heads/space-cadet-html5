@@ -56,6 +56,8 @@ TESTS=(
   controls-smoke
   ui-smoke
   presentation-smoke
+  performance-smoke
+  offline-smoke
 )
 GAMEPLAY_SIZES=(1280,900 900,700 390,844)
 
@@ -74,7 +76,7 @@ for test in "${TESTS[@]}"; do
     "http://127.0.0.1:${port}/tests/${test}.html"
   )
   case "$test" in
-    audio-smoke|sound-smoke|mission-sound-smoke|controls-smoke|ui-smoke|presentation-smoke|gameplay-smoke)
+    audio-smoke|sound-smoke|mission-sound-smoke|controls-smoke|ui-smoke|presentation-smoke|performance-smoke|gameplay-smoke)
       args+=(--autoplay-policy=no-user-gesture-required)
       ;;
   esac

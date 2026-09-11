@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet offline smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <pre id="result">RUNNING…</pre>
+  <script>
+    (async () => {
+      'use strict';
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      try {
+        const responses = await Promise.all([fetch('../index.html'), fetch('../app.js')]);
+        const indexText = await responses[0].text();
+        const appText = await responses[1].text();
+        check('index and app source serve locally', responses.every(response => response.ok));
+        check('index has no remote runtime script or stylesheet', !/<(?:script|link)[^>]+(?:src|href)=["']https?:/i.test(indexText));
+        check('app has no remote runtime imports', !/(?:import\s+.*from\s+|fetch\s*\(|new\s+Worker\s*\()["']https?:/i.test(appText));
+        check('runtime uses only local canvas/audio APIs', !/<script[^>]+src=["']\/\//i.test(indexText));
+        check('offline page has no external network dependency', !/https?:\/\//i.test(indexText));
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
