@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet raised-deck scaffold smoke test</title>
+  <style>
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      try {
+        const design = window.spaceCadetDeckDesign;
+        const existing = window.spaceCadetTableCoordinates;
+        check('portrait reference dimensions preserved', design.reference.width === 342 && design.reference.height === 482);
+        check('portrait viewport fits the existing playfield',
+          design.viewport.w <= 365 && design.viewport.h <= 416 && design.viewport.scale > 0);
+        check('viewport keeps source aspect ratio',
+          Math.abs(design.viewport.w / design.viewport.h - 342 / 482) < 0.0001);
+        check('named deck sections are mapped',
+          ['base', 'upperDeck', 'leftIsland', 'centerReactor', 'rightOverpass', 'leftUnderpass', 'lowerApron']
+            .every(key => design.sections[key]));
+        check('raised and bridge levels are distinct',
+          design.levels.lower === 0 && design.levels.raised === 1 && design.levels.bridge === 2
+            && design.sections.upperDeck.level > design.sections.base.level
+            && design.sections.rightOverpass.level > design.sections.base.level);
+        check('access routes map to portrait coordinates',
+          design.routes.length === 3 && design.routes.every(route => route.path.length >= 4));
+        check('existing collision map remains available',
+          existing.screen.width === 600 && existing.screen.height === 416 && existing.mapped.bumpers.length === 7);
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>

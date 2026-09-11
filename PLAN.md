@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.2 — deck coordinate scaffold
+**Current position:** Stage 8.3 — layered draw order
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -83,9 +83,12 @@ check passes.
 - [x] **8.1 Reference freeze (≤4 min):** record the reference proportions,
   palette, major raised areas, under/over crossings, and the no-bundled-assets
   rule. This section is the source of truth for the redesign.
-- [-] **8.2 Deck coordinate scaffold (≤4 min):** add a named portrait-style
-  design map and deck metadata without changing existing collision behavior.
-- [ ] **8.3 Layered draw order (≤4 min):** introduce explicit `lower`,
+- [x] **8.2 Deck coordinate scaffold (≤4 min):** add a named portrait-style
+  design map and deck metadata without changing existing collision behavior. Added
+  the 342×482 viewport fit, lower/raised/bridge levels, named sections, and
+  three access route paths. `tests/deck-scaffold-smoke.html` passes; commit
+  `PENDING` until this checkpoint is committed.
+- [-] **8.3 Layered draw order (≤4 min):** introduce explicit `lower`,
   `raised`, `bridge-shadow`, `bridge-top`, and `ball` render passes.
 - [ ] **8.4 Lower-bed art (≤4 min):** replace the flat lower field with navy
   gradients, purple channels, lightning-like veins, and the central reactor.

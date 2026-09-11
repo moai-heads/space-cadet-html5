@@ -35,6 +35,71 @@
   const board = { x: 0, y: 0, w: 365, h: 416 };
   const playfield = { x: 0, y: 0, w: 365, h: 416 };
 
+  // Stage 8.2: keep the supplied vertical cover's proportions as a separate
+  // design map. Existing 600×416 physics remains untouched until the deck
+  // render and routing stages are ready to consume this metadata.
+  const DECK_REFERENCE = Object.freeze({ width: 342, height: 482 });
+  const DECK_LEVELS = Object.freeze({ lower: 0, raised: 1, bridge: 2 });
+  const deckViewport = (() => {
+    const scale = Math.min(playfield.w / DECK_REFERENCE.width, playfield.h / DECK_REFERENCE.height);
+    return Object.freeze({
+      x: playfield.x + (playfield.w - DECK_REFERENCE.width * scale) / 2,
+      y: playfield.y + (playfield.h - DECK_REFERENCE.height * scale) / 2,
+      w: DECK_REFERENCE.width * scale,
+      h: DECK_REFERENCE.height * scale,
+      scale,
+    });
+  })();
+
+  const DECK_SECTIONS = Object.freeze({
+    base: Object.freeze({ id: 'base', level: DECK_LEVELS.lower, ref: [10, 12, 322, 458] }),
+    upperDeck: Object.freeze({ id: 'upper-deck', level: DECK_LEVELS.raised, ref: [43, 20, 257, 166] }),
+    leftIsland: Object.freeze({ id: 'left-island', level: DECK_LEVELS.raised, ref: [0, 158, 151, 128] }),
+    centerReactor: Object.freeze({ id: 'center-reactor', level: DECK_LEVELS.lower, center: [171, 285], radius: 53 }),
+    rightOverpass: Object.freeze({ id: 'right-overpass', level: DECK_LEVELS.bridge, ref: [225, 125, 92, 196] }),
+    leftUnderpass: Object.freeze({ id: 'left-underpass', level: DECK_LEVELS.bridge, ref: [19, 264, 113, 91] }),
+    lowerApron: Object.freeze({ id: 'lower-apron', level: DECK_LEVELS.lower, ref: [26, 352, 290, 124] }),
+  });
+
+  const DECK_ROUTES = Object.freeze([
+    Object.freeze({ id: 'left-island-access', from: DECK_LEVELS.lower, to: DECK_LEVELS.raised, refPath: [[92, 320], [72, 286], [58, 245], [60, 201]] }),
+    Object.freeze({ id: 'upper-deck-access', from: DECK_LEVELS.lower, to: DECK_LEVELS.raised, refPath: [[175, 244], [171, 209], [173, 168], [171, 127]] }),
+    Object.freeze({ id: 'right-overpass-return', from: DECK_LEVELS.bridge, to: DECK_LEVELS.lower, refPath: [[298, 112], [316, 161], [306, 223], [276, 284]] }),
+  ]);
+
+  function mapDeckPoint(point) {
+    return {
+      x: deckViewport.x + point[0] * deckViewport.scale,
+      y: deckViewport.y + point[1] * deckViewport.scale,
+    };
+  }
+
+  function mapDeckRect(rect) {
+    return {
+      x: deckViewport.x + rect[0] * deckViewport.scale,
+      y: deckViewport.y + rect[1] * deckViewport.scale,
+      w: rect[2] * deckViewport.scale,
+      h: rect[3] * deckViewport.scale,
+    };
+  }
+
+  function mapDeckPath(path) {
+    return path.map(mapDeckPoint);
+  }
+
+  const mappedDeckSections = Object.freeze(Object.fromEntries(
+    Object.entries(DECK_SECTIONS).map(([key, section]) => [key, Object.freeze({
+      ...section,
+      rect: section.ref ? Object.freeze(mapDeckRect(section.ref)) : null,
+      centerPoint: section.center ? Object.freeze(mapDeckPoint(section.center)) : null,
+      mappedPath: section.refPath ? Object.freeze(mapDeckPath(section.refPath)) : null,
+    })])
+  ));
+  const mappedDeckRoutes = Object.freeze(DECK_ROUTES.map(route => Object.freeze({
+    ...route,
+    path: Object.freeze(mapDeckPath(route.refPath)),
+  })));
+
   // Stage 3.5: keep physical tuning in one place. The values are expressed in
   // the 600x416 projected screen space, then shared by every collider so a
   // rail, bumper, flipper, or drain cannot quietly use a different feel.
@@ -3902,6 +3967,15 @@
   canvas.addEventListener('contextmenu', event => event.preventDefault());
 
   // Exposed only for later stages and quick browser smoke tests.
+  window.spaceCadetDeckDesign = {
+    reference: DECK_REFERENCE,
+    levels: DECK_LEVELS,
+    viewport: deckViewport,
+    sections: mappedDeckSections,
+    routes: mappedDeckRoutes,
+    mapPoint: mapDeckPoint,
+    mapRect: mapDeckRect,
+  };
   window.spaceCadetTableCoordinates = {
     screen: REFERENCE_SCREEN,
     source: tableMap,
