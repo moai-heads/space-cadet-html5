@@ -36,6 +36,10 @@ shooter-lane exit routing.
 
 `presentation-smoke.html` covers fullscreen/mute toolbar controls, fullscreen API exposure, responsive presentation hints, and keyboard shortcut metadata.
 
-Run the complete suite from the project root with `./tests/run-smoke.sh`; it starts a temporary local server, runs all 12 Chromium pages plus 3 gameplay viewports, and exits nonzero on failure.
+Run the complete suite from the project root with `./tests/run-smoke.sh`; it starts a temporary local server, runs all 14 Chromium pages plus 3 gameplay viewports, and exits nonzero on failure.
 
 `gameplay-smoke.html` covers launch, flippers, bumper scoring, mission completion, drain/respawn, game over, and reference-aspect containment inside the current viewport. The regression runner executes it at 1280×900, 900×700, and 390×844.
+
+`performance-smoke.html` checks synchronous input latency, audio unlock, logical rendering throughput, fixed-step simulation throughput, and finite runtime state.
+
+`offline-smoke.html` verifies that the local index/app sources load without remote runtime dependencies.

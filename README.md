@@ -24,6 +24,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 6.3 complete:** added responsive fullscreen presentation, fullscreen API/button/keyboard controls, mute toolbar control, and final control hints; `tests/presentation-smoke.html` passes; commits `e7972dc` and `87df79b`.
 - **Stage 7.1 complete:** added the automated Chromium regression runner; the September 10, 2026 run passed all 12 smoke tests. See `REGRESSION.md`; commit `261b516`.
 - **Stage 7.2 complete:** added multi-viewport gameplay regression for launch, flippers, collisions, scoring, missions, drain, respawn, and game over at desktop/tablet/mobile sizes; the suite now passes 15/15 runs. Commits `fa70f89` and `668d642`.
+- **Stage 7.3 complete:** added performance/input-latency, audio-unlock, local/offline dependency, and render/simulation checks; the full runner now passes 17/17 runs. See `REGRESSION.md`; commits `7841a79` and `6989e4d`.
 - See `PLAN.md` for the live stage checklist and next steps.
 
 ## Run
