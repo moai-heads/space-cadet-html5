@@ -26,7 +26,8 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 7.2 complete:** added multi-viewport gameplay regression for launch, flippers, collisions, scoring, missions, drain, respawn, and game over at desktop/tablet/mobile sizes; the suite now passes 15/15 runs. Commits `fa70f89` and `668d642`.
 - **Stage 7.3 complete:** added performance/input-latency, audio-unlock, local/offline dependency, and render/simulation checks; the full runner passes 17/17 runs. See `REGRESSION.md`; commits `7841a79` and `6989e4d`.
 - **Stage 7.4 complete:** finalized this README, documented known limitations, and packaged the clean source archive `space-cadet-html5-final-2026-09-10.zip`.
-- See `PLAN.md` for the completed stage checklist.
+- **Stage 8.9 complete:** added three source-mapped raised-deck access guides for the island, upper deck, and overpass return, with transition lamps/arrows and a dedicated smoke test; the expanded runner passes 21/21.
+- See `PLAN.md` for the live stage checklist and remaining raised-deck work.
 
 ## Run
 

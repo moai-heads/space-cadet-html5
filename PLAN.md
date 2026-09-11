@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.9 — raised access routes
+**Current position:** Stage 8.10 — ball level routing
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -119,9 +119,12 @@ check passes.
   lower/raised/bridge tags, render-pass names, z-order values, bank-specific
   mappings, and an exposed metadata smoke harness.
   `tests/deck-metadata-smoke.html` passes; commit `8674d87`.
-- [-] **8.9 Raised access routes (≤4 min):** add entry/exit guide paths from
-  the lower bed to the island and upper deck.
-- [ ] **8.10 Ball level routing (≤4 min):** add a small deck state to ball
+- [x] **8.9 Raised access routes (≤4 min):** add entry/exit guide paths from
+  the lower bed to the island and upper deck. Added three source-mapped guide
+  lanes with dark beds, colored rails, transition lamps, directional arrows,
+  route labels, and exposed access metadata. `tests/deck-access-smoke.html`
+  passes; the full runner now passes 21/21. Implementation commit `6578a67`.
+- [-] **8.10 Ball level routing (≤4 min):** add a small deck state to ball
   transport so ramps/bridges move the ball above and below correctly.
 - [ ] **8.11 Lower apron and flipper art (≤4 min):** reshape the lower apron,
   slings, kickers, and flippers to match the reference silhouette.
