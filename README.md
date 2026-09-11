@@ -31,6 +31,7 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 8.11 complete:** added the reference-mapped lower apron, slings, kickers, and flipper skins while preserving the legacy collision map; `tests/deck-apron-smoke.html` passes. Commit `3691a74`.
 - **Stage 8.12 complete:** tuned the raised-deck purple/teal/red palette, shared chrome rails, bumper housings, reactor lamps, and transition glow; added `tests/deck-palette-smoke.html`. The full runner passes 24/24. Commit `8d41cfe`.
 - **Stage 8.13 complete:** added raised-deck regression coverage for render pass order, bridge visibility, level handoffs, bumper scoring, and physics speed limits with `tests/deck-regression-smoke.html`; the full runner passes 25/25. Commit `bb49ef5`.
+- **Stage 8.14 complete:** aligned the screenshot composition with the supplied portrait reference by making the deck viewport repaint its lower bed above legacy decoration; added `tests/deck-comparison-smoke.html`. The full runner passes 26/26. Commit `7f16745`.
 - See `PLAN.md` for the live stage checklist and remaining raised-deck work.
 
 ## Run
@@ -43,7 +44,7 @@ python3 -m http.server 8080
 
 Then visit `http://localhost:8080/`.
 
-To run the full browser regression suite, run `./tests/run-smoke.sh`. To run individual smoke pages, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/deck-scaffold-smoke.html`, `tests/deck-layers-smoke.html`, `tests/deck-metadata-smoke.html`, `tests/deck-access-smoke.html`, `tests/deck-routing-smoke.html`, `tests/deck-apron-smoke.html`, `tests/deck-palette-smoke.html`, `tests/deck-regression-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, `tests/mission-sound-smoke.html`, `tests/controls-smoke.html`, `tests/ui-smoke.html`, `tests/presentation-smoke.html`, `tests/performance-smoke.html`, `tests/offline-smoke.html`, and `tests/gameplay-smoke.html` from the same server; each should show `data-smoke="pass"`.
+To run the full browser regression suite, run `./tests/run-smoke.sh`. To run individual smoke pages, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/deck-scaffold-smoke.html`, `tests/deck-layers-smoke.html`, `tests/deck-metadata-smoke.html`, `tests/deck-access-smoke.html`, `tests/deck-routing-smoke.html`, `tests/deck-apron-smoke.html`, `tests/deck-palette-smoke.html`, `tests/deck-regression-smoke.html`, `tests/deck-comparison-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, `tests/mission-sound-smoke.html`, `tests/controls-smoke.html`, `tests/ui-smoke.html`, `tests/presentation-smoke.html`, `tests/performance-smoke.html`, `tests/offline-smoke.html`, and `tests/gameplay-smoke.html` from the same server; each should show `data-smoke="pass"`.
 
 ## Controls
 

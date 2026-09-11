@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.14 — screenshot comparison pass
+**Current position:** Stage 8.15 — delivery checkpoint
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -148,8 +148,12 @@ check passes.
   Added `tests/deck-regression-smoke.html` with render-region checks,
   lower/raised/bridge route handoffs, bumper scoring, and speed-cap coverage;
   the full runner passes 25/25. Commit `bb49ef5`.
-- [ ] **8.14 Screenshot comparison pass (≤4 min):** capture a stable preview,
+- [x] **8.14 Screenshot comparison pass (≤4 min):** capture a stable preview,
   compare proportions against the supplied image, and fix the largest drift.
+  The portrait viewport now repaints its lower reference bed after legacy
+  projected decoration, eliminating the largest screenshot drift while keeping
+  legacy collisions intact. Added `tests/deck-comparison-smoke.html`; the full
+  runner passes 26/26. Commit `7f16745`.
 - [ ] **8.15 Delivery checkpoint (≤4 min):** update README/PLAN, run the full
   regression suite, commit, and produce an updated archive.
 
