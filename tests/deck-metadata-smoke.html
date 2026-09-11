@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet deck metadata smoke test</title>
+  <style>
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const hasMeta = item => item && Number.isInteger(item.deck)
+        && Number.isFinite(item.height) && typeof item.renderPass === 'string'
+        && Number.isFinite(item.zOrder);
+      try {
+        const design = window.spaceCadetDeckDesign;
+        const metadata = window.spaceCadetDeckFeatureMetadata;
+        check('all requested feature families are exposed',
+          ['bumpers', 'targets', 'rollovers', 'ramps', 'holes'].every(key => Array.isArray(metadata[key])));
+        check('all requested features have deck metadata',
+          ['bumpers', 'targets', 'rollovers', 'ramps', 'holes'].every(key => metadata[key].every(hasMeta)));
+        check('metadata uses lower, raised, and bridge levels',
+          [...metadata.bumpers, ...metadata.targets, ...metadata.rollovers, ...metadata.ramps, ...metadata.holes]
+            .some(item => item.deck === design.levels.lower)
+            && [...metadata.bumpers, ...metadata.targets, ...metadata.rollovers, ...metadata.ramps, ...metadata.holes]
+              .some(item => item.deck === design.levels.raised)
+            && [...metadata.bumpers, ...metadata.targets, ...metadata.rollovers, ...metadata.ramps, ...metadata.holes]
+              .some(item => item.deck === design.levels.bridge));
+        check('target banks map to distinct visual passes',
+          new Set(metadata.targets.map(target => target.renderPass)).size >= 3);
+        check('feature metadata does not remove source counts',
+          metadata.bumpers.length === 7 && metadata.targets.length === 22
+          && metadata.rollovers.length === 18 && metadata.ramps.length === 2 && metadata.holes.length === 1);
+        window.spaceCadetTest.render();
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>

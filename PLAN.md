@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.8 — deck-aware feature metadata
+**Current position:** Stage 8.9 — raised access routes
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -114,9 +114,12 @@ check passes.
   lanes, raised deck bands, red/cyan rails, crossbars, and bridge lamps.
   `tests/deck-layers-smoke.html` passes; preview is generated outside Git;
   commit `0167984`.
-- [-] **8.8 Deck-aware feature metadata (≤4 min):** tag bumpers, targets,
-  rollovers, ramps, and holes with their deck/height and render z-order.
-- [ ] **8.9 Raised access routes (≤4 min):** add entry/exit guide paths from
+- [x] **8.8 Deck-aware feature metadata (≤4 min):** tag bumpers, targets,
+  rollovers, ramps, and holes with their deck/height and render z-order. Added
+  lower/raised/bridge tags, render-pass names, z-order values, bank-specific
+  mappings, and an exposed metadata smoke harness.
+  `tests/deck-metadata-smoke.html` passes; checkpoint commit follows.
+- [-] **8.9 Raised access routes (≤4 min):** add entry/exit guide paths from
   the lower bed to the island and upper deck.
 - [ ] **8.10 Ball level routing (≤4 min):** add a small deck state to ball
   transport so ramps/bridges move the ball above and below correctly.

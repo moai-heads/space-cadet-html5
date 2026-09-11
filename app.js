@@ -592,6 +592,62 @@
     { id: 'left-sling', points: [{ x: 60, y: 326 }, { x: 116, y: 350 }, { x: 79, y: 381 }], direction: { x: 0.62, y: -0.78 }, kick: PHYSICS_TUNING.slingKick, flash: 0, hitCooldown: 0, hits: 0 },
     { id: 'right-sling', points: [{ x: 258, y: 350 }, { x: 314, y: 326 }, { x: 295, y: 381 }], direction: { x: -0.62, y: -0.78 }, kick: PHYSICS_TUNING.slingKick, flash: 0, hitCooldown: 0, hits: 0 },
   ];
+
+
+  // Stage 8.8: feature metadata follows the raised-deck render vocabulary.
+  // Physics remains in the original projected screen coordinates; later deck
+  // routing can use these tags without guessing which visual level owns a hit.
+  function applyDeckFeatureMetadata(items, resolver) {
+    for (const [index, item] of items.entries()) {
+      const meta = resolver(item, index);
+      Object.assign(item, {
+        deck: meta.deck,
+        height: meta.height,
+        renderPass: meta.renderPass,
+        zOrder: meta.zOrder,
+      });
+    }
+  }
+
+  function deckFeatureMeta(deck, renderPass, zOrder) {
+    return { deck, height: deck, renderPass, zOrder };
+  }
+
+  const targetDeckByBank = Object.freeze({
+    booster: DECK_LEVELS.raised,
+    medal: DECK_LEVELS.raised,
+    multiplier: DECK_LEVELS.bridge,
+    fuel: DECK_LEVELS.lower,
+    mission: DECK_LEVELS.raised,
+    'left-hazard': DECK_LEVELS.raised,
+    'right-hazard': DECK_LEVELS.bridge,
+    wormhole: DECK_LEVELS.bridge,
+  });
+
+  applyDeckFeatureMetadata(mappedTable.bumpers, bumper => {
+    const deck = bumper.id === 'bump4'
+      ? DECK_LEVELS.bridge
+      : (['bump5', 'bump6', 'bump7'].includes(bumper.id) ? DECK_LEVELS.raised : DECK_LEVELS.lower);
+    return deckFeatureMeta(deck, deck === DECK_LEVELS.lower ? 'lower' : (deck === DECK_LEVELS.raised ? 'raised' : 'bridge-top'), 30 + deck * 20);
+  });
+  applyDeckFeatureMetadata(mappedTable.targets, target => {
+    const deck = targetDeckByBank[target.bank] ?? DECK_LEVELS.lower;
+    return deckFeatureMeta(deck, deck === DECK_LEVELS.lower ? 'lower' : (deck === DECK_LEVELS.raised ? 'raised' : 'bridge-top'), 40 + deck * 20);
+  });
+  applyDeckFeatureMetadata(mappedTable.rollovers, rollover => {
+    const raisedIds = new Set(['a_roll4', 'a_roll5', 'a_roll6', 'a_roll7', 'a_roll8']);
+    const deck = raisedIds.has(rollover.id) ? DECK_LEVELS.raised
+      : (rollover.id === 'a_roll1' || rollover.id === 'a_roll2' || rollover.id === 'a_roll3'
+        ? DECK_LEVELS.lower : DECK_LEVELS.bridge);
+    return deckFeatureMeta(deck, deck === DECK_LEVELS.lower ? 'lower' : (deck === DECK_LEVELS.raised ? 'raised' : 'bridge-top'), 45 + deck * 20);
+  });
+  applyDeckFeatureMetadata(mappedTable.ramps, ramp => deckFeatureMeta(DECK_LEVELS.bridge, 'bridge-top', 70));
+  applyDeckFeatureMetadata(mappedTable.holes, hole => deckFeatureMeta(DECK_LEVELS.raised, 'raised', 65));
+  applyDeckFeatureMetadata(mappedTable.wormholes, wormhole => deckFeatureMeta(DECK_LEVELS.bridge, 'bridge-top', 65));
+  applyDeckFeatureMetadata(mappedTable.guides, guide => deckFeatureMeta(DECK_LEVELS.lower, 'lower', 20));
+  applyDeckFeatureMetadata(mappedTable.gates, gate => deckFeatureMeta(DECK_LEVELS.bridge, 'bridge-top', 60));
+  applyDeckFeatureMetadata(mappedTable.kickers, kicker => deckFeatureMeta(DECK_LEVELS.lower, 'lower', 25));
+  applyDeckFeatureMetadata(mappedTable.slingshots, sling => deckFeatureMeta(DECK_LEVELS.lower, 'lower', 25));
   const shooterRail = mappedTable.shooterRail;
   const tableCorners = mappedTable.tableCorners;
   let cssScale = 1;
@@ -4332,6 +4388,14 @@
 
   // Exposed only for later stages and quick browser smoke tests.
   window.spaceCadetDeckPasses = DECK_RENDER_PASSES;
+  window.spaceCadetDeckFeatureMetadata = {
+    bumpers: mappedTable.bumpers,
+    targets: mappedTable.targets,
+    rollovers: mappedTable.rollovers,
+    ramps: mappedTable.ramps,
+    holes: mappedTable.holes,
+    wormholes: mappedTable.wormholes,
+  };
   window.spaceCadetDeckDesign = {
     reference: DECK_REFERENCE,
     levels: DECK_LEVELS,
