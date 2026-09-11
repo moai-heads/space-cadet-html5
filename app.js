@@ -325,13 +325,22 @@
     const pivot = projectWorldPair(source.pivot);
     const restTip = projectWorldPair(source.restTip);
     const activeTip = projectWorldPair(source.activeTip);
+    const restAngle = angleBetween(pivot, restTip);
+    const rawActiveAngle = angleBetween(pivot, activeTip);
+    // Screen-space angles increase clockwise (positive Y points down). The
+    // right bat's source active angle wraps across -PI, so unwrap it into the
+    // clockwise branch instead of making the bat take the long counter-clockwise
+    // path around the pivot.
+    const activeAngle = side === 'right' && rawActiveAngle < restAngle
+      ? rawActiveAngle + Math.PI * 2
+      : rawActiveAngle;
     mappedTable.flippers[side] = {
       pivot,
       restTip,
       activeTip,
       length: Math.hypot(restTip.x - pivot.x, restTip.y - pivot.y),
-      restAngle: angleBetween(pivot, restTip),
-      activeAngle: angleBetween(pivot, activeTip),
+      restAngle,
+      activeAngle,
     };
   }
   for (const source of tableMap.bumpers) {
