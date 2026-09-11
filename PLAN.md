@@ -113,7 +113,7 @@ check passes.
   right-overpass and left-underpass cavities, support columns, visible lower
   lanes, raised deck bands, red/cyan rails, crossbars, and bridge lamps.
   `tests/deck-layers-smoke.html` passes; preview is generated outside Git;
-  checkpoint commit follows.
+  commit `0167984`.
 - [-] **8.8 Deck-aware feature metadata (≤4 min):** tag bumpers, targets,
   rollovers, ramps, and holes with their deck/height and render z-order.
 - [ ] **8.9 Raised access routes (≤4 min):** add entry/exit guide paths from
