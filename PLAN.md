@@ -96,7 +96,7 @@ check passes.
   gradients, purple channels, lightning-like veins, and the central reactor. Added
   a portrait-fitted lower bed, purple apron channels, animated veins, and a
   procedural teal reactor with lamps. `tests/deck-layers-smoke.html` passes;
-  preview is generated outside Git; checkpoint commit follows.
+  preview is generated outside Git; commit `722b13c`.
 - [-] **8.5 Raised left island (≤4 min):** draw the purple upper-left island,
   its lip, support posts, lamps, and access mouth.
 - [ ] **8.6 Upper bumper deck (≤4 min):** draw the dark top deck, red cradle
