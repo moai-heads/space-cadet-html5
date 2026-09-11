@@ -87,7 +87,7 @@ check passes.
   design map and deck metadata without changing existing collision behavior. Added
   the 342×482 viewport fit, lower/raised/bridge levels, named sections, and
   three access route paths. `tests/deck-scaffold-smoke.html` passes; commit
-  `PENDING` until this checkpoint is committed.
+  `4b995d0`.
 - [-] **8.3 Layered draw order (≤4 min):** introduce explicit `lower`,
   `raised`, `bridge-shadow`, `bridge-top`, and `ball` render passes.
 - [ ] **8.4 Lower-bed art (≤4 min):** replace the flat lower field with navy
