@@ -42,7 +42,7 @@ python3 -m http.server 8080
 
 Then visit `http://localhost:8080/`.
 
-To run the full browser regression suite, run `./tests/run-smoke.sh`. To run individual smoke pages, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, `tests/mission-sound-smoke.html`, `tests/controls-smoke.html`, `tests/ui-smoke.html`, `tests/presentation-smoke.html`, `tests/performance-smoke.html`, `tests/offline-smoke.html`, and `tests/gameplay-smoke.html` from the same server; each should show `data-smoke="pass"`.
+To run the full browser regression suite, run `./tests/run-smoke.sh`. To run individual smoke pages, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/deck-scaffold-smoke.html`, `tests/deck-layers-smoke.html`, `tests/deck-metadata-smoke.html`, `tests/deck-access-smoke.html`, `tests/deck-routing-smoke.html`, `tests/deck-apron-smoke.html`, `tests/deck-palette-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, `tests/mission-sound-smoke.html`, `tests/controls-smoke.html`, `tests/ui-smoke.html`, `tests/presentation-smoke.html`, `tests/performance-smoke.html`, `tests/offline-smoke.html`, and `tests/gameplay-smoke.html` from the same server; each should show `data-smoke="pass"`.
 
 ## Controls
 
