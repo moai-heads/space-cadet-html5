@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.13 — deck regression smoke test
+**Current position:** Stage 8.14 — screenshot comparison pass
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -143,8 +143,11 @@ check passes.
   color-balanced bumper housings, reactor signal lamps, transition accents,
   and `tests/deck-palette-smoke.html`; the full runner passes 24/24. Commit
   `8d41cfe`.
-- [ ] **8.13 Deck regression smoke test (≤4 min):** test render layers,
+- [x] **8.13 Deck regression smoke test (≤4 min):** test render layers,
   bridge visibility, level transitions, and existing scoring/physics hooks.
+  Added `tests/deck-regression-smoke.html` with render-region checks,
+  lower/raised/bridge route handoffs, bumper scoring, and speed-cap coverage;
+  the full runner passes 25/25. Commit `bb49ef5`.
 - [ ] **8.14 Screenshot comparison pass (≤4 min):** capture a stable preview,
   compare proportions against the supplied image, and fix the largest drift.
 - [ ] **8.15 Delivery checkpoint (≤4 min):** update README/PLAN, run the full

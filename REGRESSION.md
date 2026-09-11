@@ -2,9 +2,9 @@
 
 **Last run:** September 11, 2026  
 **Command:** `./tests/run-smoke.sh`  
-**Result:** **24/24 regression runs passed**
+**Result:** **25/25 regression runs passed**
 
-The runner performs a syntax check, serves the project locally, launches headless Chromium for every smoke page, applies the autoplay policy to audio tests, runs gameplay at 1280×900, 900×700, and 390×844, checks performance and offline serving, and fails nonzero if any page does not report `data-smoke="pass"`. The seven raised-deck smoke pages are included in the 24-run total.
+The runner performs a syntax check, serves the project locally, launches headless Chromium for every smoke page, applies the autoplay policy to audio tests, runs gameplay at 1280×900, 900×700, and 390×844, checks performance and offline serving, and fails nonzero if any page does not report `data-smoke="pass"`. The eight raised-deck smoke pages are included in the 25-run total.
 
 Validated pages:
 
@@ -20,6 +20,7 @@ Validated pages:
 - `deck-routing-smoke.html`
 - `deck-apron-smoke.html`
 - `deck-palette-smoke.html`
+- `deck-regression-smoke.html`
 - `layout-smoke.html`
 - `audio-smoke.html`
 - `sound-smoke.html`
