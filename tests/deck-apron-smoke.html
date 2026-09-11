@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet lower apron smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const apron = window.spaceCadetDeckApron;
+      const design = window.spaceCadetDeckDesign;
+      const flippers = window.spaceCadetFlippers;
+      const test = window.spaceCadetTest;
+      const canvas = document.getElementById('game');
+
+      function run() {
+        check('lower apron reference exposes a complete foreground silhouette',
+          apron && apron.reference && apron.reference.silhouette.length >= 10
+          && apron.reference.silhouette.every(point => point.length === 2));
+        check('apron includes mirrored sling wings and paired kickers',
+          apron.reference.leftSling.length === 3
+          && apron.reference.rightSling.length === 3
+          && apron.reference.leftKicker[0] < design.reference.width / 2
+          && apron.reference.rightKicker[0] > design.reference.width / 2);
+        check('apron art stays inside the portrait reference bounds',
+          Object.values(apron.reference).flatMap(value => Array.isArray(value[0]) ? value : [value])
+            .filter(point => Array.isArray(point) && point.length === 2)
+            .every(([x, y]) => x >= -4 && x <= design.reference.width + 4 && y >= -4 && y <= design.reference.height + 4));
+        check('both flippers retain the corrected clockwise right-hand path',
+          flippers.left.activeAngle !== flippers.left.restAngle
+          && flippers.right.activeAngle > flippers.right.restAngle);
+
+        test.render();
+        const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+        let visiblePixels = 0;
+        for (let index = 0; index < pixels.length; index += 4) {
+          if (pixels[index] + pixels[index + 1] + pixels[index + 2] > 36) visiblePixels += 1;
+        }
+        check('apron render produces visible non-black pixels', visiblePixels > 15000, `visible=${visiblePixels}`);
+        check('render completed in test mode', test.renderFrames >= 1);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>

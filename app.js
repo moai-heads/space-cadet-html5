@@ -13,6 +13,7 @@
  * CRT/palette polish; Stage 5.1 adds the lazy Web Audio mixer and unlock path.
  * Stage 8 adds the supplied-reference raised-deck redesign; Stage 8.10 adds
  * deck-aware ball routing across ramps, bridges, and raised access lanes.
+ * Stage 8.11 adds a reference-mapped lower apron, slings, kickers, and flippers.
  */
 (() => {
   'use strict';
@@ -3323,6 +3324,197 @@
     }
   }
 
+  // Stage 8.11: the lower apron is the reference's foreground hardware: a
+  // deep purple throat, two angular sling wings, paired kick cups, and long
+  // mirrored flippers. Keep the art in portrait reference coordinates while
+  // continuing to use the legacy projected coordinates for collision.
+  const DECK_APRON_REFERENCE = Object.freeze({
+    silhouette: [
+      [22, 348], [64, 334], [101, 347], [127, 376], [151, 407],
+      [171, 416], [191, 407], [215, 376], [241, 347], [278, 334],
+      [320, 348], [328, 482], [14, 482],
+    ],
+    leftWing: [[22, 348], [64, 334], [124, 374], [151, 407], [126, 482], [14, 482]],
+    rightWing: [[218, 374], [278, 334], [320, 348], [328, 482], [216, 482], [191, 407]],
+    centerThroat: [[127, 405], [171, 416], [215, 405], [231, 482], [111, 482]],
+    leftSling: [[28, 374], [94, 401], [58, 445]],
+    rightSling: [[248, 401], [314, 374], [302, 445]],
+    leftKicker: [9, 438],
+    rightKicker: [306, 438],
+  });
+
+  function drawDeckLowerApronArt(inner, t) {
+    const pulse = .5 + .5 * Math.sin(t * .0031);
+    const shadow = DECK_APRON_REFERENCE.silhouette.map(([x, y]) => [x + 5, y + 8]);
+    drawDeckPolygon(shadow, inner, 'rgba(0, 2, 10, .90)', '#080718', 2);
+
+    const apronTop = drawDeckPoint(mapDeckPoint([0, 334]), inner);
+    const apronBottom = drawDeckPoint(mapDeckPoint([0, 482]), inner);
+    const apronGradient = ctx.createLinearGradient(apronTop.x, apronTop.y, apronBottom.x, apronBottom.y);
+    apronGradient.addColorStop(0, '#24174d');
+    apronGradient.addColorStop(.34, '#18133a');
+    apronGradient.addColorStop(.76, '#0c0b24');
+    apronGradient.addColorStop(1, '#050713');
+    drawDeckPolygon(DECK_APRON_REFERENCE.silhouette, inner, apronGradient, '#744a9d', 1.4);
+
+    const leftGradient = ctx.createLinearGradient(0, apronTop.y, inner.x + 122, apronBottom.y);
+    leftGradient.addColorStop(0, '#8f4caf');
+    leftGradient.addColorStop(.48, '#592e8c');
+    leftGradient.addColorStop(1, '#241445');
+    drawDeckPolygon(DECK_APRON_REFERENCE.leftWing, inner, leftGradient, '#c56bc4', 1);
+
+    const rightGradient = ctx.createLinearGradient(inner.x + 245, apronTop.y, inner.x + 210, apronBottom.y);
+    rightGradient.addColorStop(0, '#713c9b');
+    rightGradient.addColorStop(.45, '#3b256f');
+    rightGradient.addColorStop(1, '#171331');
+    drawDeckPolygon(DECK_APRON_REFERENCE.rightWing, inner, rightGradient, '#9d5bb1', 1);
+
+    drawDeckPolygon(DECK_APRON_REFERENCE.centerThroat, inner, 'rgba(4, 7, 22, .86)', '#33436f', .9);
+    drawDeckPolyline([[128, 407], [151, 420], [171, 426], [191, 420], [214, 407]], inner, '#a45eb7', 1.7, 5);
+    drawDeckPolyline([[139, 482], [151, 432], [171, 423], [191, 432], [204, 482]], inner, 'rgba(74, 105, 165, .72)', 1.1, 2);
+
+    // Long edge rails make the apron read as a recessed bed rather than a
+    // single flat polygon. The paired lamps echo the reference's hardware.
+    drawDeckPolyline([[22, 348], [64, 334], [124, 374], [151, 407]], inner, '#e484d0', 2.2, 7);
+    drawDeckPolyline([[218, 374], [278, 334], [320, 348]], inner, '#b76cc7', 2.2, 6);
+    drawDeckPolyline([[27, 357], [65, 346], [117, 380]], inner, 'rgba(45, 197, 211, .86)', 1.2, 4);
+    drawDeckPolyline([[225, 380], [277, 346], [315, 357]], inner, 'rgba(79, 185, 207, .78)', 1.2, 4);
+
+    const leftLamps = [[31, 358], [48, 349], [68, 350], [91, 366], [113, 385]];
+    const rightLamps = [[229, 385], [251, 366], [274, 350], [294, 349], [311, 358]];
+    [...leftLamps, ...rightLamps].forEach(([x, y], index) => {
+      const point = drawDeckPoint(mapDeckPoint([x, y]), inner);
+      drawLamp(point.x, point.y, index % 2 ? '#dd68c1' : '#65cad2', (Math.floor(t * .004 + index) % 4) !== 0, 1.45);
+    });
+
+    // The center throat receives a small animated chevron so the lower exit
+    // remains readable even when the ball is between the flippers.
+    const throat = drawDeckPoint(mapDeckPoint([171, 449]), inner);
+    ctx.save();
+    ctx.translate(throat.x, throat.y);
+    ctx.strokeStyle = `rgba(103, 208, 215, ${(0.44 + pulse * .32).toFixed(3)})`;
+    ctx.shadowColor = '#55c6d4';
+    ctx.shadowBlur = 5;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(-8, -3);
+    ctx.lineTo(0, 3);
+    ctx.lineTo(8, -3);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDeckApronSling(refPoints, inner, t, palette, label) {
+    const shadow = refPoints.map(([x, y]) => [x + 4, y + 6]);
+    drawDeckPolygon(shadow, inner, 'rgba(0, 2, 9, .82)', '#070816', 1.6);
+    drawDeckPolygon(refPoints, inner, palette.body, palette.edge, 1.3);
+    const center = refPoints.reduce((sum, point) => ({ x: sum.x + point[0] / refPoints.length, y: sum.y + point[1] / refPoints.length }), { x: 0, y: 0 });
+    const innerPoints = refPoints.map(([x, y]) => [
+      center.x + (x - center.x) * .62,
+      center.y + (y - center.y) * .62,
+    ]);
+    drawDeckPolygon(innerPoints, inner, palette.inset, 'rgba(241, 196, 225, .68)', .7);
+    const pulse = .5 + .5 * Math.sin(t * .005 + center.x);
+    const mappedCenter = drawDeckPoint(mapDeckPoint([center.x, center.y]), inner);
+    pixelText(label, mappedCenter.x, mappedCenter.y - 2, .72, pulse > .25 ? palette.hot : '#d49aca', 'center');
+    drawLamp(mappedCenter.x, mappedCenter.y + 10, palette.hot, pulse > .18, 1.4);
+  }
+
+  function drawDeckApronKicker(refPoint, inner, t, palette) {
+    const point = drawDeckPoint(mapDeckPoint(refPoint), inner);
+    const radius = 9 * deckViewport.scale;
+    const pulse = .5 + .5 * Math.sin(t * .004 + refPoint[0]);
+    ctx.save();
+    ctx.shadowColor = palette.glow;
+    ctx.shadowBlur = 8 + pulse * 5;
+    ctx.fillStyle = '#050817';
+    ctx.beginPath();
+    ctx.ellipse(point.x + 2, point.y + 4, radius + 2, radius * .72, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = palette.body;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = palette.edge;
+    ctx.lineWidth = 1.3;
+    ctx.stroke();
+    ctx.fillStyle = '#10152c';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius * .57, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = palette.hot;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius * (.30 + pulse * .05), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDeckApronFlipper(flipper, inner, palette) {
+    const ends = flipperEndpoints(flipper);
+    const hot = flipper.pressed || flipper.flash > 0;
+    const body = hot ? palette.hot : palette.body;
+    const edge = hot ? '#fff1af' : palette.edge;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.shadowColor = hot ? palette.glow : 'transparent';
+    ctx.shadowBlur = hot ? 15 : 4;
+    drawPolyline([ends.a, ends.b], inner, '#030611', 17, 0);
+    drawPolyline([ends.a, ends.b], inner, '#5a3a79', 14, 0);
+    drawPolyline([ends.a, ends.b], inner, body, 10, hot ? 8 : 0);
+    drawPolyline([ends.a, ends.b], inner, edge, 1.5, hot ? 4 : 0);
+    ctx.restore();
+
+    const tip = { x: inner.x + ends.b.x, y: inner.y + ends.b.y };
+    const pivot = { x: inner.x + flipper.pivot.x, y: inner.y + flipper.pivot.y };
+    ctx.save();
+    ctx.shadowColor = hot ? palette.glow : 'transparent';
+    ctx.shadowBlur = hot ? 11 : 3;
+    ctx.fillStyle = '#d8e9e6';
+    ctx.beginPath();
+    ctx.arc(tip.x, tip.y, 4.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = palette.body;
+    ctx.beginPath();
+    ctx.arc(tip.x, tip.y, 2.7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#dbece8';
+    ctx.beginPath();
+    ctx.arc(pivot.x, pivot.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = palette.body;
+    ctx.beginPath();
+    ctx.arc(pivot.x, pivot.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#f5e7a1';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(pivot.x, pivot.y, 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDeckLowerApronFeatures(inner, t) {
+    drawDeckApronSling(DECK_APRON_REFERENCE.leftSling, inner, t, {
+      body: '#a444b6', inset: '#3d1f76', edge: '#ee91d2', hot: '#f5d16b',
+    }, 'L');
+    drawDeckApronSling(DECK_APRON_REFERENCE.rightSling, inner, t, {
+      body: '#713f9d', inset: '#1c3767', edge: '#a76ccc', hot: '#70d7d5',
+    }, 'R');
+    drawDeckApronKicker(DECK_APRON_REFERENCE.leftKicker, inner, t, {
+      body: '#c25dbb', edge: '#f2aad9', hot: '#f7d66d', glow: '#e26acb',
+    });
+    drawDeckApronKicker(DECK_APRON_REFERENCE.rightKicker, inner, t, {
+      body: '#4d78af', edge: '#a2d7e2', hot: '#70d7d5', glow: '#58bfd0',
+    });
+    drawDeckApronFlipper(flippers.left, inner, {
+      body: '#b752c2', edge: '#f2b0dd', hot: '#f4d06b', glow: '#e56ed0',
+    });
+    drawDeckApronFlipper(flippers.right, inner, {
+      body: '#4b8ca9', edge: '#a9e4e1', hot: '#f4d06b', glow: '#63cfd1',
+    });
+  }
+
   function drawDeckLowerBedArt(inner, t) {
     const viewport = {
       x: inner.x + deckViewport.x,
@@ -4391,6 +4583,7 @@
     drawTargetGraphics(inner);
 
     drawDeckBridgeShadowPass(inner, t);
+    drawDeckLowerApronArt(inner, t);
 
     // Stage 3.3: mapped ramp centerlines, ramp hole, wormhole sinks, and the
     // shooter exit all use the same projected coordinates as their colliders.
@@ -4440,10 +4633,8 @@
     // near the top and four smaller field bumpers below/left.
     for (const bumper of bumpers) drawBumperGraphic(bumper, inner);
 
-    // Lower slingshots and kickers now have the same data-driven shape used
-    // by the active collision handlers.
-    drawSlingshotGraphics(inner);
-    drawKickerGraphics(inner);
+    // Legacy collision geometry remains active, while Stage 8.11 paints the
+    // lower-apron hardware in the raised-deck reference style below.
 
     const drainLeft = drain.minX;
     const drainRight = drain.maxX;
@@ -4461,8 +4652,8 @@
     ctx.stroke();
     pixelText('DRAIN', (drainLeft + drainRight) / 2, drainY + 2, .9, drain.flash > 0 ? '#f2cf63' : '#6f98a6', 'center');
 
-    drawFlipperGraphic(flippers.left, inner);
-    drawFlipperGraphic(flippers.right, inner);
+    // Flipper art is redrawn after the deck foreground so it stays above the
+    // apron lip; physics continues to use the same articulated flippers.
 
     // Contact sparks and score callouts are kept inside the source bitmap clip.
     for (const impact of collisionState.impacts) {
@@ -4491,6 +4682,7 @@
     drawDeckRaisedPass(inner, t);
     drawDeckAccessRouteGuides(inner, t);
     drawDeckBridgeTopPass(inner, t);
+    drawDeckLowerApronFeatures(inner, t);
     drawTransientFx(inner);
 
     // Dynamic ball and a short trail, in the same screen coordinates as the
@@ -4796,6 +4988,14 @@
     ramps: mappedTable.ramps,
     holes: mappedTable.holes,
     wormholes: mappedTable.wormholes,
+  };
+  window.spaceCadetDeckApron = {
+    reference: DECK_APRON_REFERENCE,
+    flippers: {
+      left: mappedTable.flippers.left,
+      right: mappedTable.flippers.right,
+    },
+    renderedFeatures: ['lower-apron', 'left-sling', 'right-sling', 'left-kicker', 'right-kicker', 'left-flipper', 'right-flipper'],
   };
   window.spaceCadetDeckDesign = {
     reference: DECK_REFERENCE,

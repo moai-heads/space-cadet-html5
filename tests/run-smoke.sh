@@ -54,6 +54,7 @@ TESTS=(
   deck-metadata-smoke
   deck-access-smoke
   deck-routing-smoke
+  deck-apron-smoke
   layout-smoke
   audio-smoke
   sound-smoke
