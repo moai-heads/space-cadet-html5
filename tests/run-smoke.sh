@@ -56,6 +56,7 @@ TESTS=(
   deck-routing-smoke
   deck-apron-smoke
   deck-palette-smoke
+  deck-regression-smoke
   layout-smoke
   audio-smoke
   sound-smoke

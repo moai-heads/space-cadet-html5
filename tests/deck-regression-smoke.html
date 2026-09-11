@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet raised-deck regression smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const design = window.spaceCadetDeckDesign;
+      const passes = window.spaceCadetDeckPasses;
+      const routing = window.spaceCadetDeckRouting;
+      const ball = window.spaceCadetBall;
+      const game = window.spaceCadetGame;
+      const test = window.spaceCadetTest;
+      const canvas = document.getElementById('game');
+      const collisions = window.spaceCadetCollisionState;
+      const physics = window.spaceCadetPhysics;
+      const bumper = window.spaceCadetBumpers[0];
+
+      function startGame() {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter' }));
+        test.step(0.02);
+      }
+
+      function placeBall(x, y, level = design.levels.lower) {
+        ball.active = true;
+        ball.transport = null;
+        ball.shooterExited = false;
+        ball.x = x;
+        ball.y = y;
+        ball.previousX = x;
+        ball.previousY = y;
+        ball.vx = 0;
+        ball.vy = 0;
+        window.spaceCadetPlunger.armed = false;
+        test.setDeckLevel(level);
+      }
+
+      function regionStats(rect) {
+        const image = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+        const left = Math.max(0, Math.floor(rect.x + 8));
+        const top = Math.max(0, Math.floor(rect.y + 8));
+        const right = Math.min(canvas.width, Math.ceil(rect.x + rect.w - 8));
+        const bottom = Math.min(canvas.height, Math.ceil(rect.y + rect.h - 8));
+        let visible = 0;
+        let colored = 0;
+        for (let y = top; y < bottom; y += 2) {
+          for (let x = left; x < right; x += 2) {
+            const offset = (y * canvas.width + x) * 4;
+            const r = image[offset];
+            const g = image[offset + 1];
+            const b = image[offset + 2];
+            if (r + g + b > 48) visible += 1;
+            if (Math.max(r, g, b) - Math.min(r, g, b) > 42 && Math.max(r, g, b) > 70) colored += 1;
+          }
+        }
+        return { visible, colored };
+      }
+
+      function run() {
+        check('declared render passes preserve the deck z-order vocabulary',
+          JSON.stringify(passes) === JSON.stringify(['lower', 'raised', 'bridge-shadow', 'bridge-top', 'ball']));
+        check('bridge sections have explicit levels and bounds',
+          design.sections.rightOverpass.level === design.levels.bridge
+          && design.sections.leftUnderpass.level === design.levels.bridge
+          && design.sections.rightOverpass.rect.w > 30
+          && design.sections.leftUnderpass.rect.h > 30);
+        check('raised routes expose deterministic handoff data',
+          design.ballRoutes.length === 3
+          && design.ballRoutes.every(route => route.length > 20 && route.ballSpeed > 100
+            && route.ballTransitionProgress > 0 && route.ballTransitionProgress < 1));
+
+        test.render();
+        const rightBridge = regionStats(design.sections.rightOverpass.rect);
+        const leftBridge = regionStats(design.sections.leftUnderpass.rect);
+        check('right overpass remains visibly rendered', rightBridge.visible > 400, `visible=${rightBridge.visible}`);
+        check('left underpass remains visibly rendered', leftBridge.visible > 180, `visible=${leftBridge.visible}`);
+        check('bridge regions retain colored rail/shadow contrast',
+          rightBridge.colored > 40 && leftBridge.colored > 20,
+          `right=${rightBridge.colored} left=${leftBridge.colored}`);
+
+        startGame();
+        check('regression test starts a playable game', game.state === 'playing');
+        check('ball starts on the lower deck', ball.deckLevel === design.levels.lower && routing.level === design.levels.lower);
+
+        const upperRoute = design.ballRoutes.find(route => route.id === 'upper-deck-access');
+        const transitionsBefore = routing.transitions;
+        placeBall(170, 220, design.levels.lower);
+        check('lower-to-raised route accepts a lower-deck ball',
+          test.startDeckRoute(upperRoute.id, { announce: false })
+          && ball.transport && ball.transport.type === 'deck-route');
+        test.step(upperRoute.length / upperRoute.ballSpeed * upperRoute.ballTransitionProgress + 0.02);
+        check('raised handoff changes semantic ball level',
+          ball.deckLevel === design.levels.raised && routing.transitions === transitionsBefore + 1);
+        test.step(upperRoute.length / upperRoute.ballSpeed + 0.12);
+        check('raised route completes with a live ejection',
+          !ball.transport && routing.routeCompletions > 0 && Math.hypot(ball.vx, ball.vy) > 80);
+
+        const returnRoute = design.ballRoutes.find(route => route.id === 'right-overpass-return');
+        placeBall(170, 220, design.levels.bridge);
+        const returnStartsBefore = routing.routeStarts;
+        check('bridge return route accepts a bridge-level ball',
+          test.startDeckRoute(returnRoute.id, { announce: false })
+          && ball.transport && ball.transport.fromLevel === design.levels.bridge);
+        test.step(returnRoute.length / returnRoute.ballSpeed + 0.12);
+        check('bridge return restores the lower level',
+          !ball.transport && ball.deckLevel === design.levels.lower
+          && routing.routeStarts === returnStartsBefore + 1);
+
+        const scoreBefore = game.score;
+        const bumperHitsBefore = collisions.bumperHits;
+        placeBall(bumper.x, bumper.y, design.levels.lower);
+        bumper.hitCooldown = 0;
+        test.step(0.01);
+        check('legacy bumper collision still awards score',
+          collisions.bumperHits === bumperHitsBefore + 1 && game.score > scoreBefore);
+        check('legacy physics still respects the shared speed cap',
+          Math.hypot(ball.vx, ball.vy) <= physics.maxSpeed + 0.01);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
