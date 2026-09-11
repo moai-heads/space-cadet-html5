@@ -3092,9 +3092,113 @@
     void t;
   }
 
+  function drawDeckPolyline(refPoints, inner, stroke, width = 1, shadow = 0) {
+    const points = mapDeckPath(refPoints).map(point => drawDeckPoint(point, inner));
+    if (!points.length) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = width;
+    ctx.shadowColor = shadow ? stroke : 'transparent';
+    ctx.shadowBlur = shadow;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDeckIslandBumper(refX, refY, refRadius, inner, t, palette) {
+    const point = drawDeckPoint(mapDeckPoint([refX, refY]), inner);
+    const radius = refRadius * deckViewport.scale;
+    const pulse = .5 + .5 * Math.sin(t * .003 + refX);
+    ctx.save();
+    ctx.shadowColor = palette.glow;
+    ctx.shadowBlur = 9 + pulse * 4;
+    ctx.fillStyle = '#eef1e9';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius + 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = palette.rim;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = palette.core;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius * .53, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#f5d3e5';
+    ctx.lineWidth = .8;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius * .28, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.86)';
+    ctx.beginPath();
+    ctx.arc(point.x - radius * .30, point.y - radius * .34, Math.max(1, radius * .15), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawDeckRaisedIslandArt(inner, t) {
+    const island = [[0, 170], [26, 151], [109, 155], [145, 181], [153, 219], [138, 260], [96, 281], [28, 270], [0, 247]];
+    const shadow = island.map(([x, y]) => [x + 5, y + 8]);
+    const supports = [
+      [[24, 264], [15, 307], [31, 316], [45, 271]],
+      [[91, 278], [104, 315], [121, 307], [111, 267]],
+      [[128, 245], [151, 286], [163, 280], [139, 229]],
+    ];
+
+    // Supports are intentionally drawn first so the island reads as elevated
+    // instead of a flat purple decal on the lower playfield.
+    for (const support of supports) {
+      drawDeckPolygon(support.map(([x, y]) => [x + 4, y + 7]), inner, 'rgba(0, 3, 12, .78)', '#101a2c', 1);
+      drawDeckPolygon(support, inner, 'rgba(31, 22, 62, .96)', '#53607f', .9);
+      drawDeckPolyline([support[0], support[1]], inner, 'rgba(125, 174, 185, .65)', 1.2);
+    }
+
+    drawDeckPolygon(shadow, inner, 'rgba(2, 3, 15, .84)', 'rgba(19, 7, 41, .90)', 2);
+    drawDeckPolygon(island, inner, '#6d3ca0', '#d16ac4', 1.4);
+    drawDeckPolygon([[2, 181], [29, 160], [105, 163], [137, 185], [144, 216], [129, 251], [92, 270], [31, 260], [2, 240]], inner,
+      'rgba(123, 62, 162, .74)', 'rgba(218, 105, 204, .55)', .8);
+
+    // A bright lower lip and a dark front face sell the one-level drop.
+    drawDeckPolyline([[0, 247], [28, 270], [96, 281], [138, 260]], inner, '#ed8bd3', 2.4, 7);
+    drawDeckPolyline([[5, 253], [31, 276], [96, 287], [143, 265]], inner, 'rgba(34, 12, 67, .92)', 5);
+    drawDeckPolyline([[0, 170], [26, 151], [109, 155], [145, 181]], inner, '#263b66', 2.2, 3);
+    drawDeckPolyline([[13, 176], [36, 164], [101, 168], [132, 187]], inner, 'rgba(232, 113, 216, .66)', 1);
+
+    const lamps = [[13, 200], [19, 225], [27, 246], [50, 263], [77, 269], [108, 261]];
+    for (let index = 0; index < lamps.length; index += 1) {
+      const point = drawDeckPoint(mapDeckPoint(lamps[index]), inner);
+      drawLamp(point.x, point.y, index % 2 ? '#e45baa' : '#a96dde', (Math.floor(t * .004 + index) % 3) !== 0, 1.55);
+    }
+
+    drawDeckIslandBumper(28, 224, 10, inner, t, { rim: '#e7b0e0', core: '#bd3c78', glow: '#f26bc8' });
+    drawDeckIslandBumper(73, 228, 11, inner, t, { rim: '#d9b5f1', core: '#8c3d9f', glow: '#d97df1' });
+    drawDeckIslandBumper(112, 204, 11, inner, t, { rim: '#e8b4df', core: '#cb416e', glow: '#f174bd' });
+
+    // The island mouth points back to the lower bed and will become a real
+    // deck transfer lane in Stage 8.9.
+    const mouth = drawDeckPoint(mapDeckPoint([137, 258]), inner);
+    ctx.save();
+    ctx.shadowColor = '#65d1df';
+    ctx.shadowBlur = 7;
+    ctx.fillStyle = '#081225';
+    ctx.strokeStyle = '#76d7dc';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.ellipse(mouth.x, mouth.y, 9 * deckViewport.scale, 4.3 * deckViewport.scale, -.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    pixelText('UP', mouth.x, mouth.y - 1, .62, '#b8f3ea', 'center');
+  }
+
   function drawDeckRaisedPass(inner, t) {
-    void inner;
-    void t;
+    drawDeckRaisedIslandArt(inner, t);
   }
 
   function drawDeckBridgeTopPass(inner, t) {
