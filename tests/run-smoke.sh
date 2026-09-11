@@ -49,6 +49,10 @@ TESTS=(
   ramps-smoke
   rules-smoke
   tuning-smoke
+  deck-scaffold-smoke
+  deck-layers-smoke
+  deck-metadata-smoke
+  deck-access-smoke
   layout-smoke
   audio-smoke
   sound-smoke

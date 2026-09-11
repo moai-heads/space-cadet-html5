@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet raised-deck access-route smoke test</title>
+  <style>
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      try {
+        const design = window.spaceCadetDeckDesign;
+        const guides = design.accessGuides;
+        check('three named access guides are exposed',
+          Array.isArray(guides) && guides.length === 3);
+        check('guides have usable multi-point paths',
+          guides.every(guide => guide.path.length >= 5 && guide.refPath.length === guide.path.length));
+        check('guides cover island, upper-deck, and overpass routes',
+          ['left-island-access', 'upper-deck-access', 'right-overpass-return']
+            .every(id => guides.some(guide => guide.id === id)));
+        check('guides declare entry/exit transitions',
+          guides.every(guide => ['entry', 'exit'].includes(guide.routeType)
+            && Number.isInteger(guide.transitionAt)
+            && guide.transitionAt >= 0
+            && guide.transitionAt < guide.path.length));
+        check('guide styling is complete',
+          guides.every(guide => [guide.railColor, guide.laneColor, guide.lampColor, guide.label]
+            .every(value => typeof value === 'string' && value.length > 0)));
+        check('guide endpoints stay inside the portrait viewport',
+          guides.every(guide => guide.path.every(point => point.x >= design.viewport.x - 0.01
+            && point.x <= design.viewport.x + design.viewport.w + 0.01
+            && point.y >= design.viewport.y - 0.01
+            && point.y <= design.viewport.y + design.viewport.h + 0.01)));
+        window.spaceCadetTest.render();
+        check('access-route render completes', window.spaceCadetTest.renderFrames > 0);
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>

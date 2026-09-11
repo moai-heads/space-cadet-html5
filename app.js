@@ -62,10 +62,46 @@
     lowerApron: Object.freeze({ id: 'lower-apron', level: DECK_LEVELS.lower, ref: [26, 352, 290, 124] }),
   });
 
+  // Stage 8.9: route paths are visual guide lanes only. Stage 8.10 will
+  // consume the same map for ball-level transport; keeping the source paths
+  // here prevents the art and future routing code from drifting apart.
   const DECK_ROUTES = Object.freeze([
-    Object.freeze({ id: 'left-island-access', from: DECK_LEVELS.lower, to: DECK_LEVELS.raised, refPath: [[92, 320], [72, 286], [58, 245], [60, 201]] }),
-    Object.freeze({ id: 'upper-deck-access', from: DECK_LEVELS.lower, to: DECK_LEVELS.raised, refPath: [[175, 244], [171, 209], [173, 168], [171, 127]] }),
-    Object.freeze({ id: 'right-overpass-return', from: DECK_LEVELS.bridge, to: DECK_LEVELS.lower, refPath: [[298, 112], [316, 161], [306, 223], [276, 284]] }),
+    Object.freeze({
+      id: 'left-island-access',
+      from: DECK_LEVELS.lower,
+      to: DECK_LEVELS.raised,
+      routeType: 'entry',
+      refPath: [[96, 348], [88, 320], [103, 300], [126, 279], [137, 258]],
+      transitionAt: 4,
+      railColor: '#e36ac6',
+      laneColor: '#32165b',
+      lampColor: '#e9c86a',
+      label: 'ISLAND',
+    }),
+    Object.freeze({
+      id: 'upper-deck-access',
+      from: DECK_LEVELS.lower,
+      to: DECK_LEVELS.raised,
+      routeType: 'entry',
+      refPath: [[165, 244], [156, 219], [154, 190], [161, 161], [171, 127]],
+      transitionAt: 4,
+      railColor: '#66d2d7',
+      laneColor: '#0a3150',
+      lampColor: '#f0c95f',
+      label: 'UPPER',
+    }),
+    Object.freeze({
+      id: 'right-overpass-return',
+      from: DECK_LEVELS.bridge,
+      to: DECK_LEVELS.lower,
+      routeType: 'exit',
+      refPath: [[298, 112], [315, 145], [316, 180], [300, 222], [277, 284]],
+      transitionAt: 4,
+      railColor: '#d75b7b',
+      laneColor: '#123c55',
+      lampColor: '#70d1d3',
+      label: 'RETURN',
+    }),
   ]);
 
   function mapDeckPoint(point) {
@@ -99,6 +135,19 @@
   const mappedDeckRoutes = Object.freeze(DECK_ROUTES.map(route => Object.freeze({
     ...route,
     path: Object.freeze(mapDeckPath(route.refPath)),
+  })));
+  const mappedDeckAccessGuides = Object.freeze(mappedDeckRoutes.map(route => Object.freeze({
+    id: route.id,
+    from: route.from,
+    to: route.to,
+    routeType: route.routeType,
+    refPath: route.refPath,
+    path: route.path,
+    transitionAt: route.transitionAt,
+    railColor: route.railColor,
+    laneColor: route.laneColor,
+    lampColor: route.lampColor,
+    label: route.label,
   })));
 
   // Stage 3.5: keep physical tuning in one place. The values are expressed in
@@ -3189,6 +3238,79 @@
     ctx.restore();
   }
 
+  function drawDeckAccessRouteGuides(inner, t) {
+    // Each guide is a shallow, two-rail lane: the dark bed keeps it legible
+    // over the art, the colored center shows the route, and the hot edge rail
+    // makes the level transition read as hardware rather than a painted line.
+    for (const guide of mappedDeckAccessGuides) {
+      const points = mapDeckPath(guide.refPath).map(point => drawDeckPoint(point, inner));
+      if (points.length < 2) continue;
+      const pulse = .5 + .5 * Math.sin(t * .003 + guide.transitionAt);
+
+      drawDeckPolyline(guide.refPath, inner, 'rgba(0, 2, 9, .94)', 11, 0);
+      drawDeckPolyline(guide.refPath, inner, guide.laneColor, 7, 0);
+      drawDeckPolyline(guide.refPath, inner, guide.railColor, 1.8, 7);
+
+      // A restrained dashed center stripe gives the route a directional read
+      // without competing with the ball or the table's feature lamps.
+      ctx.save();
+      ctx.strokeStyle = `rgba(226, 245, 225, ${(0.28 + pulse * .20).toFixed(3)})`;
+      ctx.lineWidth = .65;
+      ctx.lineCap = 'round';
+      ctx.setLineDash([2.5, 3.2]);
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let index = 1; index < points.length; index += 1) {
+        ctx.lineTo(points[index].x, points[index].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      for (let index = 1; index < points.length - 1; index += 1) {
+        const point = points[index];
+        drawLamp(point.x, point.y, guide.lampColor, (Math.floor(t * .004 + index) % 3) !== 0, 1.35);
+      }
+
+      const transitionIndex = Math.min(Math.max(guide.transitionAt, 0), points.length - 1);
+      const transition = points[transitionIndex];
+      ctx.save();
+      ctx.shadowColor = guide.railColor;
+      ctx.shadowBlur = 8 + pulse * 5;
+      ctx.fillStyle = '#07101b';
+      ctx.strokeStyle = guide.lampColor;
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(transition.x, transition.y, 4.2 + pulse * .7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      const segmentIndex = guide.routeType === 'exit'
+        ? 0
+        : Math.max(0, transitionIndex - 1);
+      const a = points[segmentIndex];
+      const b = points[Math.min(points.length - 1, segmentIndex + 1)];
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      const arrow = guide.routeType === 'exit' ? a : b;
+      ctx.save();
+      ctx.translate(arrow.x, arrow.y);
+      ctx.rotate(angle);
+      ctx.fillStyle = guide.lampColor;
+      ctx.shadowColor = guide.lampColor;
+      ctx.shadowBlur = 5;
+      ctx.beginPath();
+      ctx.moveTo(4.5, 0);
+      ctx.lineTo(-2.2, -2.4);
+      ctx.lineTo(-1.0, 0);
+      ctx.lineTo(-2.2, 2.4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      pixelText(guide.label, transition.x, transition.y + 10, .48, guide.lampColor, 'center');
+    }
+  }
+
   function drawDeckIslandBumper(refX, refY, refRadius, inner, t, palette) {
     const point = drawDeckPoint(mapDeckPoint([refX, refY]), inner);
     const radius = refRadius * deckViewport.scale;
@@ -4092,6 +4214,7 @@
       ctx.restore();
     }
     drawDeckRaisedPass(inner, t);
+    drawDeckAccessRouteGuides(inner, t);
     drawDeckBridgeTopPass(inner, t);
     drawTransientFx(inner);
 
@@ -4402,6 +4525,7 @@
     viewport: deckViewport,
     sections: mappedDeckSections,
     routes: mappedDeckRoutes,
+    accessGuides: mappedDeckAccessGuides,
     mapPoint: mapDeckPoint,
     mapRect: mapDeckRect,
   };
