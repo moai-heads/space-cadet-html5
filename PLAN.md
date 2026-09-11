@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.10 — ball level routing
+**Current position:** Stage 8.11 — lower apron and flipper art
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -124,8 +124,12 @@ check passes.
   lanes with dark beds, colored rails, transition lamps, directional arrows,
   route labels, and exposed access metadata. `tests/deck-access-smoke.html`
   passes; the full runner now passes 21/21. Implementation commit `6578a67`.
-- [-] **8.10 Ball level routing (≤4 min):** add a small deck state to ball
-  transport so ramps/bridges move the ball above and below correctly.
+- [x] **8.10 Ball level routing (≤4 min):** add a small deck state to ball
+  transport so ramps/bridges move the ball above and below correctly. Added
+  lower/raised/bridge ball state, deterministic access-route transports,
+  mid-route level handoffs, ramp destination levels, depth-aware ball shading,
+  and `tests/deck-routing-smoke.html`; the full runner passes 22/22. Commit
+  `97b2213`.
 - [ ] **8.11 Lower apron and flipper art (≤4 min):** reshape the lower apron,
   slings, kickers, and flippers to match the reference silhouette.
 - [ ] **8.12 Palette and feature pass (≤4 min):** tune lamps, bumpers, rails,
