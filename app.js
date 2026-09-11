@@ -3088,8 +3088,32 @@
   }
 
   function drawDeckBridgeShadowPass(inner, t) {
-    void inner;
-    void t;
+    const pulse = .5 + .5 * Math.sin(t * .0022);
+    const rightShadow = [[225, 130], [306, 153], [310, 197], [296, 242], [269, 292], [238, 320], [218, 301], [241, 247], [253, 197]];
+    const leftShadow = [[17, 278], [58, 258], [104, 263], [130, 293], [116, 349], [75, 364], [34, 350], [15, 313]];
+
+    // These dark cavities are painted before the raised deck tops, leaving a
+    // visible lower lane beneath each bridge rather than a flat overlay.
+    drawDeckPolygon(rightShadow, inner, 'rgba(0, 3, 12, .82)', 'rgba(8, 14, 28, .96)', 2);
+    drawDeckPolygon(leftShadow, inner, 'rgba(0, 3, 13, .78)', 'rgba(15, 13, 37, .94)', 2);
+
+    const rightLane = [[233, 145], [291, 166], [294, 200], [279, 242], [252, 283]];
+    const leftLane = [[24, 313], [58, 292], [98, 299], [113, 325]];
+    drawDeckPolyline(rightLane, inner, 'rgba(15, 70, 99, .94)', 8, 0);
+    drawDeckPolyline(rightLane, inner, `rgba(75, 190, 211, ${(0.52 + pulse * .18).toFixed(3)})`, 1.2, 3);
+    drawDeckPolyline(leftLane, inner, 'rgba(20, 67, 95, .92)', 7, 0);
+    drawDeckPolyline(leftLane, inner, 'rgba(80, 182, 202, .62)', 1.1, 3);
+
+    const supportColumns = [
+      [[235, 237], [250, 244], [239, 311], [224, 301]],
+      [[282, 193], [297, 198], [285, 267], [272, 278]],
+      [[35, 317], [48, 311], [42, 356], [28, 350]],
+      [[99, 303], [113, 309], [109, 346], [95, 352]],
+    ];
+    for (const column of supportColumns) {
+      drawDeckPolygon(column.map(([x, y]) => [x + 4, y + 5]), inner, 'rgba(0, 0, 5, .72)', '#080d1b', 1);
+      drawDeckPolygon(column, inner, 'rgba(13, 19, 39, .82)', '#334763', .8);
+    }
   }
 
   function drawDeckPolyline(refPoints, inner, stroke, width = 1, shadow = 0) {
@@ -3253,8 +3277,39 @@
   }
 
   function drawDeckBridgeTopPass(inner, t) {
-    void inner;
-    void t;
+    const hot = .5 + .5 * Math.sin(t * .0027);
+    const rightDeck = [[229, 130], [305, 153], [301, 184], [286, 219], [273, 258], [245, 302], [222, 290], [244, 237], [256, 190], [244, 157]];
+    const leftDeck = [[18, 277], [58, 259], [103, 264], [128, 292], [114, 337], [76, 352], [38, 341], [24, 313]];
+
+    drawDeckPolygon(rightDeck, inner, 'rgba(12, 26, 49, .94)', '#395879', 1.2);
+    drawDeckPolygon(leftDeck, inner, 'rgba(49, 24, 76, .88)', '#a95db0', 1.2);
+
+    const rightOuter = [[229, 130], [305, 153], [301, 184], [286, 219], [273, 258], [245, 302]];
+    const rightInner = [[244, 151], [283, 163], [286, 186], [276, 220], [259, 257], [244, 281]];
+    drawDeckPolyline(rightOuter, inner, '#260e2c', 7, 0);
+    drawDeckPolyline(rightOuter, inner, '#c64f73', 2.5, 7);
+    drawDeckPolyline(rightInner, inner, '#1c4b65', 5, 0);
+    drawDeckPolyline(rightInner, inner, `rgba(104, 216, 218, ${(0.70 + hot * .20).toFixed(3)})`, 1.5, 5);
+
+    const redCrossbars = [
+      [[247, 151], [283, 163]],
+      [[244, 182], [286, 194]],
+      [[235, 216], [278, 229]],
+      [[226, 254], [262, 267]],
+    ];
+    for (const bar of redCrossbars) drawDeckPolyline(bar, inner, '#db637e', 1.4, 4);
+
+    const leftOuter = [[18, 277], [58, 259], [103, 264], [128, 292], [114, 337]];
+    const leftInner = [[31, 294], [61, 278], [95, 282], [111, 300], [101, 327]];
+    drawDeckPolyline(leftOuter, inner, '#26102f', 6, 0);
+    drawDeckPolyline(leftOuter, inner, '#b65bb5', 2.3, 6);
+    drawDeckPolyline(leftInner, inner, '#3c6a83', 4, 0);
+    drawDeckPolyline(leftInner, inner, '#7bd7d1', 1.1, 4);
+
+    for (const pointRef of [[246, 157], [270, 166], [280, 195], [265, 236], [247, 275]]) {
+      const point = drawDeckPoint(mapDeckPoint(pointRef), inner);
+      drawLamp(point.x, point.y, '#d65c78', true, 1.35);
+    }
   }
 
   function drawTableRuleLamps(inner) {
