@@ -3941,6 +3941,12 @@
       startMission,
       missionEvent,
       addRankProgress,
+      render() {
+        draw(simTime * 1000);
+      },
+      get renderFrames() {
+        return renderFrames;
+      },
     };
   }
 
