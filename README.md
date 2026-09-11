@@ -1,6 +1,6 @@
 # 3D Pinball — Space Cadet (HTML5)
 
-A from-scratch, browser-playable homage to the classic Windows Space Cadet table. It uses a Canvas 2D renderer, fixed-step physics, a drain/respawn lifecycle, procedural table art, and no external runtime assets. Procedural Web Audio is planned for Stage 5.
+A from-scratch, browser-playable homage to the classic Windows Space Cadet table. It uses a Canvas 2D renderer, fixed-step physics, a drain/respawn lifecycle, procedural table art, procedural Web Audio, and no external runtime assets.
 
 ## Progress
 
@@ -22,10 +22,11 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 6.1 complete:** polished keyboard, mouse, touch, focus-loss, pointer-drag, and canvas focus behavior; added `tests/controls-smoke.html`; commits `c092a96` and `d4491bc`.
 - **Stage 6.2 complete:** added the rendered help overlay, Escape/R restart paths, live accessibility status, keyboard shortcut metadata, and accessible instructions; `tests/ui-smoke.html` passes; commits `d939991` and `6fe7e90`.
 - **Stage 6.3 complete:** added responsive fullscreen presentation, fullscreen API/button/keyboard controls, mute toolbar control, and final control hints; `tests/presentation-smoke.html` passes; commits `e7972dc` and `87df79b`.
-- **Stage 7.1 complete:** added the automated Chromium regression runner; the September 10, 2026 run passed all 12 smoke tests. See `REGRESSION.md`; commit `261b516`.
+- **Stage 7.1 complete:** added the automated Chromium regression runner; the September 10, 2026 run passed all 17 regression runs. See `REGRESSION.md`; commit `261b516`.
 - **Stage 7.2 complete:** added multi-viewport gameplay regression for launch, flippers, collisions, scoring, missions, drain, respawn, and game over at desktop/tablet/mobile sizes; the suite now passes 15/15 runs. Commits `fa70f89` and `668d642`.
-- **Stage 7.3 complete:** added performance/input-latency, audio-unlock, local/offline dependency, and render/simulation checks; the full runner now passes 17/17 runs. See `REGRESSION.md`; commits `7841a79` and `6989e4d`.
-- See `PLAN.md` for the live stage checklist and next steps.
+- **Stage 7.3 complete:** added performance/input-latency, audio-unlock, local/offline dependency, and render/simulation checks; the full runner passes 17/17 runs. See `REGRESSION.md`; commits `7841a79` and `6989e4d`.
+- **Stage 7.4 complete:** finalized this README, documented known limitations, and packaged the clean source archive `space-cadet-html5-final-2026-09-10.zip`.
+- See `PLAN.md` for the completed stage checklist.
 
 ## Run
 
@@ -37,7 +38,7 @@ python3 -m http.server 8080
 
 Then visit `http://localhost:8080/`.
 
-To run the full browser regression suite, run `./tests/run-smoke.sh`. To run individual smoke pages, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, `tests/mission-sound-smoke.html`, `tests/controls-smoke.html`, `tests/ui-smoke.html`, and `tests/presentation-smoke.html` from the same server; each should show `data-smoke="pass"`.
+To run the full browser regression suite, run `./tests/run-smoke.sh`. To run individual smoke pages, open `tests/input-smoke.html`, `tests/table-features-smoke.html`, `tests/ramps-smoke.html`, `tests/rules-smoke.html`, `tests/tuning-smoke.html`, `tests/layout-smoke.html`, `tests/audio-smoke.html`, `tests/sound-smoke.html`, `tests/mission-sound-smoke.html`, `tests/controls-smoke.html`, `tests/ui-smoke.html`, `tests/presentation-smoke.html`, `tests/performance-smoke.html`, `tests/offline-smoke.html`, and `tests/gameplay-smoke.html` from the same server; each should show `data-smoke="pass"`.
 
 ## Controls
 
@@ -45,9 +46,20 @@ To run the full browser regression suite, run `./tests/run-smoke.sh`. To run ind
 - **/ / Right Shift:** right flipper
 - **Hold Space, release Space:** charge and launch the plunger
 - **A/D or Left/Right arrows:** nudge
-- **Enter:** new game
-- **P:** pause
-- **H:** help overlay
-- **M:** toggle mute state (audio is planned for Stage 5)
+- **Enter:** start / continue
+- **R:** restart
+- **P:** pause / resume
+- **H / Escape:** help overlay / close help
+- **M:** mute / unmute
+- **F / F11:** fullscreen
+- **Mouse/touch:** use the lower apron zones for left flipper, right flipper, and shooter lane
+
+## Known limitations
+
+- This is a from-scratch homage, not a byte-for-byte recreation; some table geometry, scoring values, mission text, and physics are approximations.
+- Original Microsoft sprites, binaries, and recordings are intentionally not included. Visuals and sounds are procedural.
+- Audio and fullscreen require a browser user gesture and may be restricted by browser privacy or autoplay policy.
+- High score persistence uses `localStorage`; private browsing or storage-disabled contexts may not retain it.
+- A current browser and a local static server are recommended. Opening the HTML file directly can limit audio, fullscreen, or local fetch behavior.
 
 This is an independent, from-scratch fan recreation. It does not include Microsoft binaries, original sprites, or original audio files.
