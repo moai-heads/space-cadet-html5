@@ -32,7 +32,8 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 8.12 complete:** tuned the raised-deck purple/teal/red palette, shared chrome rails, bumper housings, reactor lamps, and transition glow; added `tests/deck-palette-smoke.html`. The full runner passes 24/24. Commit `8d41cfe`.
 - **Stage 8.13 complete:** added raised-deck regression coverage for render pass order, bridge visibility, level handoffs, bumper scoring, and physics speed limits with `tests/deck-regression-smoke.html`; the full runner passes 25/25. Commit `bb49ef5`.
 - **Stage 8.14 complete:** aligned the screenshot composition with the supplied portrait reference by making the deck viewport repaint its lower bed above legacy decoration; added `tests/deck-comparison-smoke.html`. The full runner passes 26/26. Commit `7f16745`.
-- See `PLAN.md` for the live stage checklist and remaining raised-deck work.
+- **Stage 8.15 complete:** finalized the raised-deck redesign documentation, ran the complete 26/26 regression suite, and produced `space-cadet-html5-final-2026-09-11.zip` as a clean source archive outside Git.
+- **Stage 8 complete:** the supplied-reference raised-deck redesign is delivered; see `PLAN.md` and `REGRESSION.md` for the checkpoints and validation details.
 
 ## Run
 

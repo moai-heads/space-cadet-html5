@@ -38,7 +38,15 @@ shooter-lane exit routing.
 
 `deck-routing-smoke.html` covers lower/raised/bridge ball state, access-route transports, mid-route level handoffs, ramp destination levels, and raised-deck return routing.
 
-Run the complete suite from the project root with `./tests/run-smoke.sh`; it starts a temporary local server, runs all 19 Chromium pages plus 3 gameplay viewports, and exits nonzero on failure.
+`deck-apron-smoke.html` covers the portrait lower apron, paired slings/kickers, flipper skins, and corrected right-flipper handedness.
+
+`deck-palette-smoke.html` covers the named purple/teal/red palette, chrome roles, bumper housings, and colored render contrast.
+
+`deck-regression-smoke.html` covers render-pass vocabulary, bridge visibility, raised/bridge handoffs, bumper scoring, and the shared physics speed cap.
+
+`deck-comparison-smoke.html` covers the stable screenshot frame, 342×482 portrait aspect, centered viewport, and major reference landmark bands.
+
+Run the complete suite from the project root with `./tests/run-smoke.sh`; it starts a temporary local server, runs all 23 Chromium smoke pages plus 3 gameplay viewports, and exits nonzero on failure.
 
 `gameplay-smoke.html` covers launch, flippers, bumper scoring, mission completion, drain/respawn, game over, and reference-aspect containment inside the current viewport. The regression runner executes it at 1280×900, 900×700, and 390×844.
 

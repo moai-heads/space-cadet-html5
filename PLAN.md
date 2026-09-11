@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.15 — delivery checkpoint
+**Current position:** Stage 8 complete — delivered
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -154,8 +154,12 @@ check passes.
   projected decoration, eliminating the largest screenshot drift while keeping
   legacy collisions intact. Added `tests/deck-comparison-smoke.html`; the full
   runner passes 26/26. Commit `7f16745`.
-- [ ] **8.15 Delivery checkpoint (≤4 min):** update README/PLAN, run the full
-  regression suite, commit, and produce an updated archive.
+- [x] **8.15 Delivery checkpoint (≤4 min):** update README/PLAN, run the full
+  regression suite, commit, and produce an updated archive. Final documentation
+  records the Stage 8 handoff; the full runner passes 26/26. The clean source
+  archive is `space-cadet-html5-final-2026-09-11.zip`, generated outside Git.
+
+**Stage 8 delivery notes:** the raised-deck redesign is complete as of September 11, 2026. The archive contains source, tests, and documentation only; generated previews, archives, and supplied reference files remain outside Git.
 
 **Stage 8.1 notes:** image is 342×482 portrait; the visual landmarks are the
 left purple elevated area, a top elevated bumper cluster, a large central teal
