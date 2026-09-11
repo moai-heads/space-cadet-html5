@@ -16,6 +16,8 @@
  * Stage 8.11 adds a reference-mapped lower apron, slings, kickers, and flippers.
  * Stage 8.12 centralizes the raised-deck palette and adds chrome, lamp,
  * bumper, and glow tuning for the supplied purple/teal/red reference.
+ * Stage 8.14 makes the portrait reference layer own its viewport and validates
+ * stable screenshot proportions without changing legacy physics coordinates.
  */
 (() => {
   'use strict';
@@ -4600,7 +4602,6 @@
     ctx.save();
     roundedRect(inner.x + 4, inner.y + 4, inner.w - 8, inner.h - 8, 3);
     ctx.clip();
-    drawDeckLowerPass(inner, t);
 
     // Repeated dust/texture gives the flat procedural field the same low-res
     // visual density as the source bitmap without importing its pixels.
@@ -4674,9 +4675,6 @@
     drawGateGraphics(inner);
     drawRolloverGraphics(inner);
     drawTargetGraphics(inner);
-
-    drawDeckBridgeShadowPass(inner, t);
-    drawDeckLowerApronArt(inner, t);
 
     // Stage 3.3: mapped ramp centerlines, ramp hole, wormhole sinks, and the
     // shooter exit all use the same projected coordinates as their colliders.
@@ -4772,6 +4770,14 @@
       text(`+${popup.points}`, inner.x + popup.x, inner.y + popup.y, 8, '#ffe88c', 'center');
       ctx.restore();
     }
+
+    // Stage 8.14: the portrait redesign owns the deck viewport visually.
+    // Repainting the lower bed here masks legacy projected decoration while
+    // preserving its collision and scoring state; bridge shadows and raised
+    // tops are then restored in their intended z-order.
+    drawDeckLowerPass(inner, t);
+    drawDeckLowerApronArt(inner, t);
+    drawDeckBridgeShadowPass(inner, t);
     drawDeckRaisedPass(inner, t);
     drawDeckAccessRouteGuides(inner, t);
     drawDeckBridgeTopPass(inner, t);

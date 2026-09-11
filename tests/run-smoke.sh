@@ -57,6 +57,7 @@ TESTS=(
   deck-apron-smoke
   deck-palette-smoke
   deck-regression-smoke
+  deck-comparison-smoke
   layout-smoke
   audio-smoke
   sound-smoke

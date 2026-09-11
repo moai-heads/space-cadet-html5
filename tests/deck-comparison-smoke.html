@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet deck screenshot comparison smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const design = window.spaceCadetDeckDesign;
+      const test = window.spaceCadetTest;
+      const canvas = document.getElementById('game');
+
+      function regionStats(rect) {
+        const image = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+        const left = Math.max(0, Math.floor(rect.x + 5));
+        const top = Math.max(0, Math.floor(rect.y + 5));
+        const right = Math.min(canvas.width, Math.ceil(rect.x + rect.w - 5));
+        const bottom = Math.min(canvas.height, Math.ceil(rect.y + rect.h - 5));
+        let visible = 0;
+        let colored = 0;
+        for (let y = top; y < bottom; y += 2) {
+          for (let x = left; x < right; x += 2) {
+            const offset = (y * canvas.width + x) * 4;
+            const r = image[offset];
+            const g = image[offset + 1];
+            const b = image[offset + 2];
+            if (r + g + b > 48) visible += 1;
+            if (Math.max(r, g, b) - Math.min(r, g, b) > 42 && Math.max(r, g, b) > 70) colored += 1;
+          }
+        }
+        return { visible, colored };
+      }
+
+      function run() {
+        const expectedScale = 416 / design.reference.height;
+        const expectedWidth = design.reference.width * expectedScale;
+        const expectedX = (365 - expectedWidth) / 2;
+        check('portrait map keeps the supplied 342x482 aspect ratio',
+          Math.abs(design.reference.width / design.reference.height - design.viewport.w / design.viewport.h) < .001);
+        check('portrait map fills the playfield height and stays centered',
+          Math.abs(design.viewport.h - 416) < .01
+          && Math.abs(design.viewport.w - expectedWidth) < .01
+          && Math.abs(design.viewport.x - expectedX) < .01
+          && Math.abs(design.viewport.y) < .01);
+        check('reference landmarks preserve top, bridge, reactor, and apron bands',
+          design.sections.upperDeck.ref[1] <= 24
+          && design.sections.rightOverpass.ref[1] >= 120
+          && design.sections.centerReactor.center[1] >= 275
+          && design.sections.centerReactor.center[1] <= 295
+          && design.sections.lowerApron.ref[1] >= 345);
+
+        // A fixed render at simTime=0 is the stable comparison frame used by
+        // screenshot tooling. Sample the normalized feature bands rather than
+        // shipping the supplied reference pixels in the project.
+        test.render();
+        const upper = regionStats(design.sections.upperDeck.rect);
+        const rightBridge = regionStats(design.sections.rightOverpass.rect);
+        const leftBridge = regionStats(design.sections.leftUnderpass.rect);
+        const apron = regionStats(design.sections.lowerApron.rect);
+        check('stable frame contains the upper feature band', upper.visible > 800, `visible=${upper.visible}`);
+        check('stable frame contains both bridge bands',
+          rightBridge.visible > 400 && leftBridge.visible > 160,
+          `right=${rightBridge.visible} left=${leftBridge.visible}`);
+        check('stable frame contains a colored lower apron band',
+          apron.visible > 300 && apron.colored > 40,
+          `visible=${apron.visible} colored=${apron.colored}`);
+        check('comparison frame is visibly rendered', test.renderFrames >= 1);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
