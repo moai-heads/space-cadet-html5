@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.4 — lower-bed art
+**Current position:** Stage 8.5 — raised left island
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -92,9 +92,12 @@ check passes.
   `raised`, `bridge-shadow`, `bridge-top`, and `ball` render passes. Added the
   named pass list and render hooks without replacing the existing physics map.
   `tests/deck-layers-smoke.html` passes; commit `ca1f465`.
-- [-] **8.4 Lower-bed art (≤4 min):** replace the flat lower field with navy
-  gradients, purple channels, lightning-like veins, and the central reactor.
-- [ ] **8.5 Raised left island (≤4 min):** draw the purple upper-left island,
+- [x] **8.4 Lower-bed art (≤4 min):** replace the flat lower field with navy
+  gradients, purple channels, lightning-like veins, and the central reactor. Added
+  a portrait-fitted lower bed, purple apron channels, animated veins, and a
+  procedural teal reactor with lamps. `tests/deck-layers-smoke.html` passes;
+  preview is generated outside Git; checkpoint commit follows.
+- [-] **8.5 Raised left island (≤4 min):** draw the purple upper-left island,
   its lip, support posts, lamps, and access mouth.
 - [ ] **8.6 Upper bumper deck (≤4 min):** draw the dark top deck, red cradle
   rails, three large bumper housings, and top entry lanes.

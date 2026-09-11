@@ -2954,12 +2954,137 @@
     ctx.restore();
   }
 
+  function drawDeckPoint(point, inner) {
+    return { x: inner.x + point.x, y: inner.y + point.y };
+  }
+
+  function drawDeckPolygon(refPoints, inner, fill, stroke = null, lineWidth = 1) {
+    const points = mapDeckPath(refPoints).map(point => drawDeckPoint(point, inner));
+    if (!points.length) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if (stroke) {
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+    }
+  }
+
+  function drawDeckLowerBedArt(inner, t) {
+    const viewport = {
+      x: inner.x + deckViewport.x,
+      y: inner.y + deckViewport.y,
+      w: deckViewport.w,
+      h: deckViewport.h,
+    };
+    ctx.save();
+    roundedRect(viewport.x, viewport.y, viewport.w, viewport.h, 4);
+    ctx.clip();
+
+    const base = ctx.createLinearGradient(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h);
+    base.addColorStop(0, '#081531');
+    base.addColorStop(.32, '#071f3d');
+    base.addColorStop(.72, '#06152d');
+    base.addColorStop(1, '#030816');
+    ctx.fillStyle = base;
+    ctx.fillRect(viewport.x, viewport.y, viewport.w, viewport.h);
+
+    // The reference has broad purple channels flowing around a blue center bed.
+    drawDeckPolygon([[17, 390], [81, 335], [113, 346], [64, 482], [10, 482]], inner,
+      'rgba(103, 47, 143, .86)', 'rgba(216, 105, 211, .76)', 1.2);
+    drawDeckPolygon([[229, 350], [296, 390], [332, 482], [276, 482], [220, 374]], inner,
+      'rgba(75, 38, 119, .88)', 'rgba(181, 89, 184, .72)', 1.2);
+    drawDeckPolygon([[95, 393], [171, 338], [247, 393], [229, 482], [111, 482]], inner,
+      'rgba(77, 34, 122, .78)', 'rgba(128, 70, 171, .50)', 1);
+    drawDeckPolygon([[126, 482], [171, 371], [216, 482]], inner,
+      'rgba(111, 45, 151, .34)', null);
+
+    const veins = [
+      [[53, 353], [88, 327], [105, 303], [126, 293], [143, 258]],
+      [[278, 342], [249, 312], [239, 279], [212, 254], [206, 220]],
+      [[83, 360], [121, 336], [146, 314], [158, 290], [171, 259]],
+      [[255, 376], [226, 345], [208, 319], [191, 302], [181, 268]],
+      [[104, 232], [123, 215], [135, 190], [128, 168]],
+      [[247, 238], [225, 219], [213, 194], [217, 168]],
+    ];
+    const pulse = .48 + .18 * Math.sin(t * .002);
+    veins.forEach((path, index) => {
+      const color = index % 2 ? `rgba(74, 190, 226, ${pulse.toFixed(3)})` : 'rgba(97, 119, 213, .52)';
+      const mapped = mapDeckPath(path).map(point => drawDeckPoint(point, inner));
+      ctx.beginPath();
+      ctx.moveTo(mapped[0].x, mapped[0].y);
+      for (let i = 1; i < mapped.length; i += 1) ctx.lineTo(mapped[i].x, mapped[i].y);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = index % 2 ? 1.1 : .8;
+      ctx.shadowColor = index % 2 ? '#37b7db' : '#6673ce';
+      ctx.shadowBlur = 4;
+      ctx.stroke();
+    });
+
+    // The large circular center feature is the reference's strongest landmark.
+    const reactor = mappedDeckSections.centerReactor;
+    const center = drawDeckPoint(reactor.centerPoint, inner);
+    const radius = reactor.radius * deckViewport.scale;
+    const reactorGradient = ctx.createRadialGradient(center.x - radius * .2, center.y - radius * .2, 2, center.x, center.y, radius);
+    reactorGradient.addColorStop(0, '#4c9eae');
+    reactorGradient.addColorStop(.34, '#1f6178');
+    reactorGradient.addColorStop(.72, '#14344f');
+    reactorGradient.addColorStop(1, '#071224');
+    ctx.shadowColor = '#2e9eaa';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = reactorGradient;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#5ac1c2';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius * .82, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(113, 209, 204, .56)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius * .52, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#0a1b2e';
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius * .17, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#b9e2d5';
+    ctx.stroke();
+    for (let index = 0; index < 16; index += 1) {
+      const angle = index / 16 * Math.PI * 2 + t * .00016;
+      const lampX = center.x + Math.cos(angle) * radius * .68;
+      const lampY = center.y + Math.sin(angle) * radius * .68;
+      drawLamp(lampX, lampY, index % 3 === 0 ? '#e8783b' : '#d6b449', index % 5 !== 0, Math.max(1.4, 2.2 * deckViewport.scale));
+    }
+
+    // Lower apron silhouette; the actual flippers remain in the original
+    // collision map and will be visually re-skinned in a later task.
+    drawDeckPolygon([[99, 452], [126, 407], [150, 389], [171, 410], [192, 389], [216, 407], [244, 452]], inner,
+      'rgba(87, 35, 120, .70)', 'rgba(186, 83, 182, .76)', 1.1);
+    drawDeckPolygon([[139, 445], [171, 416], [203, 445], [193, 482], [149, 482]], inner,
+      'rgba(27, 17, 55, .72)', 'rgba(102, 83, 164, .72)', 1);
+
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle = 'rgba(151, 202, 215, .74)';
+    ctx.lineWidth = 1.6;
+    roundedRect(viewport.x + 2, viewport.y + 2, viewport.w - 4, viewport.h - 4, 4);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // Stage 8.3: keep deck z-order explicit. The lower field is painted first;
   // raised geometry is then allowed to sit above its collision art; bridge
   // shadows go below bridge tops; the ball remains the final visible pass.
   function drawDeckLowerPass(inner, t) {
-    void inner;
-    void t;
+    drawDeckLowerBedArt(inner, t);
   }
 
   function drawDeckBridgeShadowPass(inner, t) {
