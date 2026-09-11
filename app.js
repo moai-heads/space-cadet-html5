@@ -3197,7 +3197,58 @@
     pixelText('UP', mouth.x, mouth.y - 1, .62, '#b8f3ea', 'center');
   }
 
+  function drawDeckUpperDeckArt(inner, t) {
+    const deck = [[39, 27], [85, 12], [221, 14], [278, 32], [306, 70], [300, 114], [278, 147], [236, 165], [201, 148], [171, 124], [139, 151], [94, 165], [55, 146], [33, 112], [29, 67]];
+    const shadow = deck.map(([x, y]) => [x + 4, y + 9]);
+    const innerDeck = [[45, 33], [86, 20], [216, 21], [269, 37], [291, 72], [285, 109], [263, 137], [232, 151], [199, 136], [171, 112], [143, 138], [98, 151], [60, 134], [42, 104], [39, 70]];
+
+    drawDeckPolygon(shadow, inner, 'rgba(0, 2, 10, .88)', '#13162c', 2);
+    drawDeckPolygon(deck, inner, '#111529', '#744f9f', 1.7);
+    drawDeckPolygon(innerDeck, inner, '#0b2140', 'rgba(86, 168, 191, .76)', 1);
+
+    // A low purple-blue inset keeps the upper section visually separate from
+    // the lower bed while still leaving lanes visible beneath it.
+    drawDeckPolygon([[54, 43], [91, 29], [212, 29], [259, 44], [278, 73], [273, 101], [252, 128], [226, 140], [200, 125], [171, 100], [142, 126], [104, 140], [69, 124], [51, 99], [48, 69]], inner,
+      'rgba(15, 44, 75, .82)', 'rgba(128, 94, 186, .58)', .8);
+
+    // The reference has a red cradle surrounding the upper playfield.
+    const redRail = '#c64e76';
+    const redHot = '#ff9a9e';
+    drawDeckPolyline([[39, 57], [30, 78], [31, 101], [44, 125], [66, 146]], inner, '#240f2d', 6, 0);
+    drawDeckPolyline([[39, 57], [30, 78], [31, 101], [44, 125], [66, 146]], inner, redRail, 2.6, 6);
+    drawDeckPolyline([[272, 36], [292, 61], [300, 87], [294, 112], [278, 141], [244, 160]], inner, '#240f2d', 6, 0);
+    drawDeckPolyline([[272, 36], [292, 61], [300, 87], [294, 112], [278, 141], [244, 160]], inner, redRail, 2.6, 6);
+    drawDeckPolyline([[49, 47], [42, 73], [45, 103], [58, 125]], inner, '#5bc0cf', 1.5, 3);
+    drawDeckPolyline([[263, 43], [280, 67], [285, 91], [278, 119], [258, 143]], inner, '#5bc0cf', 1.5, 3);
+
+    // Three entry lanes converge on the bumper cluster. They are visual routes
+    // now; physics handoff is intentionally scheduled for Stage 8.9/8.10.
+    const lanes = [
+      [[89, 24], [91, 47], [82, 67]],
+      [[171, 20], [171, 48], [173, 63]],
+      [[222, 25], [218, 48], [226, 67]],
+    ];
+    lanes.forEach((lane, index) => {
+      drawDeckPolyline(lane, inner, index === 1 ? '#f0c95f' : '#6dd3da', 1.3, 4);
+      const end = mapDeckPoint(lane[lane.length - 1]);
+      const point = drawDeckPoint(end, inner);
+      drawLamp(point.x, point.y, index === 1 ? '#e8bf56' : '#68cbd2', true, 1.8);
+    });
+
+    // Upper-deck lamps and decal retain the compact pinball-cover feel.
+    for (let index = 0; index < 9; index += 1) {
+      const point = drawDeckPoint(mapDeckPoint([112 + index * 14, 39 + (index % 2) * 2]), inner);
+      drawLamp(point.x, point.y, index % 3 === 0 ? '#e4bb4d' : '#57c5cf', (Math.floor(t * .003 + index) % 4) !== 0, 1.35);
+    }
+    pixelText('UPPER', drawDeckPoint(mapDeckPoint([171, 48]), inner).x, drawDeckPoint(mapDeckPoint([171, 48]), inner).y - 12, .62, '#a4c2d6', 'center');
+
+    drawDeckIslandBumper(78, 84, 14, inner, t, { rim: '#e5d8ec', core: '#b53f76', glow: '#f079ba' });
+    drawDeckIslandBumper(173, 80, 15, inner, t, { rim: '#e6e4e2', core: '#ba445d', glow: '#f17a9b' });
+    drawDeckIslandBumper(172, 127, 14, inner, t, { rim: '#dfd7eb', core: '#974596', glow: '#d47ce2' });
+  }
+
   function drawDeckRaisedPass(inner, t) {
+    drawDeckUpperDeckArt(inner, t);
     drawDeckRaisedIslandArt(inner, t);
   }
 

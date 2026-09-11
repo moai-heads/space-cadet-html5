@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.6 — upper bumper deck
+**Current position:** Stage 8.7 — bridge occlusion
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -103,9 +103,12 @@ check passes.
   dome bumpers, perimeter lamps, and a marked lower-bed access mouth.
   `tests/deck-layers-smoke.html` passes; preview is generated outside Git;
   commit `ec46585`.
-- [-] **8.6 Upper bumper deck (≤4 min):** draw the dark top deck, red cradle
-  rails, three large bumper housings, and top entry lanes.
-- [ ] **8.7 Bridge occlusion (≤4 min):** add raised rails, underside darkness,
+- [x] **8.6 Upper bumper deck (≤4 min):** draw the dark top deck, red cradle
+  rails, three large bumper housings, and top entry lanes. Added the dark
+  upper-deck silhouette, red/blue cradle rails, three large dome bumpers,
+  entry-lane guides, and upper-deck lamps. `tests/deck-layers-smoke.html` passes;
+  preview is generated outside Git; checkpoint commit follows.
+- [-] **8.7 Bridge occlusion (≤4 min):** add raised rails, underside darkness,
   support shadows, and narrow visible lower lanes under the bridges.
 - [ ] **8.8 Deck-aware feature metadata (≤4 min):** tag bumpers, targets,
   rollovers, ramps, and holes with their deck/height and render z-order.
