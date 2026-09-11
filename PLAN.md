@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.12 — palette and feature pass
+**Current position:** Stage 8.13 — deck regression smoke test
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -137,8 +137,12 @@ check passes.
   kick cups, and separate raised-deck flipper skins while preserving the legacy
   collision geometry. Added `tests/deck-apron-smoke.html`; the full runner passes
   23/23. Implementation commit `3691a74`.
-- [ ] **8.12 Palette and feature pass (≤4 min):** tune lamps, bumpers, rails,
+- [x] **8.12 Palette and feature pass (≤4 min):** tune lamps, bumpers, rails,
   chrome highlights, and glow to the reference's purple/teal/red balance.
+  Added the named `DECK_PALETTE`, shared raised-deck chrome rail renderer,
+  color-balanced bumper housings, reactor signal lamps, transition accents,
+  and `tests/deck-palette-smoke.html`; the full runner passes 24/24. Commit
+  `8d41cfe`.
 - [ ] **8.13 Deck regression smoke test (≤4 min):** test render layers,
   bridge visibility, level transitions, and existing scoring/physics hooks.
 - [ ] **8.14 Screenshot comparison pass (≤4 min):** capture a stable preview,

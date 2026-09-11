@@ -28,6 +28,8 @@ A from-scratch, browser-playable homage to the classic Windows Space Cadet table
 - **Stage 7.4 complete:** finalized this README, documented known limitations, and packaged the clean source archive `space-cadet-html5-final-2026-09-10.zip`.
 - **Stage 8.9 complete:** added three source-mapped raised-deck access guides for the island, upper deck, and overpass return, with transition lamps/arrows and a dedicated smoke test; the expanded runner passes 21/21.
 - **Stage 8.10 complete:** added lower/raised/bridge ball state, deterministic access-route transports, mid-route level handoffs, ramp destination levels, depth-aware ball shading, and `tests/deck-routing-smoke.html`; the full runner passes 22/22. Commit `97b2213`.
+- **Stage 8.11 complete:** added the reference-mapped lower apron, slings, kickers, and flipper skins while preserving the legacy collision map; `tests/deck-apron-smoke.html` passes. Commit `3691a74`.
+- **Stage 8.12 complete:** tuned the raised-deck purple/teal/red palette, shared chrome rails, bumper housings, reactor lamps, and transition glow; added `tests/deck-palette-smoke.html`. The full runner passes 24/24. Commit `8d41cfe`.
 - See `PLAN.md` for the live stage checklist and remaining raised-deck work.
 
 ## Run
