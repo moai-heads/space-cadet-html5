@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
-**Last updated:** September 10, 2026
-**Current position:** Complete
+**Last updated:** September 11, 2026
+**Current position:** Stage 8.2 — deck coordinate scaffold
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -61,6 +61,63 @@ stage changes, and record the validating test or commit for completed work.
 - [x] 7.2 Test launch, flippers, collisions, scoring, missions, drain, respawn, and game over at multiple viewport sizes. Added `tests/gameplay-smoke.html` and runner coverage at 1280×900, 900×700, and 390×844; fixed mapped target/rollover score preservation. All 15 regression runs pass. Commits `fa70f89`, `668d642`.
 - [x] 7.3 Check performance, input latency, audio unlock, and local/offline serving. Added `performance-smoke.html` for input/render/simulation budgets, `offline-smoke.html` for local-source dependency checks, and runner integration. September 10, 2026 run: 17/17 pass. Commits `7841a79`, `6989e4d`.
 - [x] 7.4 Produce a clean downloadable archive and final README with controls and known limitations. Final source package: `space-cadet-html5-final-2026-09-10.zip`; generated archive is kept outside Git. All 17 regression runs pass.
+
+
+## Stage 8 — Raised-deck table redesign from supplied reference
+
+**Reference:** the supplied 342×482 `glx_vertical_cover.png` image. The
+implementation will recreate its composition and gameplay ideas from scratch
+with procedural shapes and colors; the reference pixels will not be shipped as
+an asset.
+
+The target is a narrow vertical table inside the existing responsive host:
+midnight-blue lower bed, purple raised island at left, a dark upper deck with
+three large bumpers, red/blue chrome rails, a circular teal reactor at center,
+underpasses/bridges with visible support shadows, and ball routes that can move
+between lower and raised levels.
+
+Every task below is intentionally scoped to roughly four minutes or less. Mark
+one task complete only after its code/docs change is committed and its listed
+check passes.
+
+- [x] **8.1 Reference freeze (≤4 min):** record the reference proportions,
+  palette, major raised areas, under/over crossings, and the no-bundled-assets
+  rule. This section is the source of truth for the redesign.
+- [-] **8.2 Deck coordinate scaffold (≤4 min):** add a named portrait-style
+  design map and deck metadata without changing existing collision behavior.
+- [ ] **8.3 Layered draw order (≤4 min):** introduce explicit `lower`,
+  `raised`, `bridge-shadow`, `bridge-top`, and `ball` render passes.
+- [ ] **8.4 Lower-bed art (≤4 min):** replace the flat lower field with navy
+  gradients, purple channels, lightning-like veins, and the central reactor.
+- [ ] **8.5 Raised left island (≤4 min):** draw the purple upper-left island,
+  its lip, support posts, lamps, and access mouth.
+- [ ] **8.6 Upper bumper deck (≤4 min):** draw the dark top deck, red cradle
+  rails, three large bumper housings, and top entry lanes.
+- [ ] **8.7 Bridge occlusion (≤4 min):** add raised rails, underside darkness,
+  support shadows, and narrow visible lower lanes under the bridges.
+- [ ] **8.8 Deck-aware feature metadata (≤4 min):** tag bumpers, targets,
+  rollovers, ramps, and holes with their deck/height and render z-order.
+- [ ] **8.9 Raised access routes (≤4 min):** add entry/exit guide paths from
+  the lower bed to the island and upper deck.
+- [ ] **8.10 Ball level routing (≤4 min):** add a small deck state to ball
+  transport so ramps/bridges move the ball above and below correctly.
+- [ ] **8.11 Lower apron and flipper art (≤4 min):** reshape the lower apron,
+  slings, kickers, and flippers to match the reference silhouette.
+- [ ] **8.12 Palette and feature pass (≤4 min):** tune lamps, bumpers, rails,
+  chrome highlights, and glow to the reference's purple/teal/red balance.
+- [ ] **8.13 Deck regression smoke test (≤4 min):** test render layers,
+  bridge visibility, level transitions, and existing scoring/physics hooks.
+- [ ] **8.14 Screenshot comparison pass (≤4 min):** capture a stable preview,
+  compare proportions against the supplied image, and fix the largest drift.
+- [ ] **8.15 Delivery checkpoint (≤4 min):** update README/PLAN, run the full
+  regression suite, commit, and produce an updated archive.
+
+**Stage 8.1 notes:** image is 342×482 portrait; the visual landmarks are the
+left purple elevated area, a top elevated bumper cluster, a large central teal
+circle, two long lower flipper lanes, and multiple rails that visibly pass over
+blue playfield channels. The host remains 600×416 until 8.2–8.3 prove a safe
+portrait mapping, so the redesign can be reverted without invalidating the
+existing Space Cadet tests.
 
 ## Working rules
 
