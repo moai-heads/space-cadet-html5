@@ -53,6 +53,7 @@ TESTS=(
   deck-layers-smoke
   deck-metadata-smoke
   deck-access-smoke
+  deck-routing-smoke
   layout-smoke
   audio-smoke
   sound-smoke

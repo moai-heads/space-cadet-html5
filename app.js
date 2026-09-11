@@ -11,6 +11,8 @@
  * 600x416 reference frame; Stage 4.2 adds procedural bitmap-like artwork,
  * chrome rails, lamp banks, and mission/rank indicators. Stage 4.3 adds
  * CRT/palette polish; Stage 5.1 adds the lazy Web Audio mixer and unlock path.
+ * Stage 8 adds the supplied-reference raised-deck redesign; Stage 8.10 adds
+ * deck-aware ball routing across ramps, bridges, and raised access lanes.
  */
 (() => {
   'use strict';
@@ -149,6 +151,21 @@
     lampColor: route.lampColor,
     label: route.label,
   })));
+
+  // Stage 8.10: visual access guides now also describe deterministic ball
+  // transports. The trigger corridor is deliberately generous enough for a
+  // fast ball, while the handoff happens mid-route so the raised/bridge level
+  // changes before the ball reaches the far lip.
+  const DECK_ROUTE_TUNING = Object.freeze({
+    triggerRadius: 12,
+    transitionProgress: 0.52,
+    transitionGrace: 0.42,
+  });
+  const DECK_ROUTE_CONFIG = Object.freeze({
+    'left-island-access': Object.freeze({ speed: 164, exitImpulse: 142 }),
+    'upper-deck-access': Object.freeze({ speed: 174, exitImpulse: 150 }),
+    'right-overpass-return': Object.freeze({ speed: 182, exitImpulse: 156 }),
+  });
 
   // Stage 3.5: keep physical tuning in one place. The values are expressed in
   // the 600x416 projected screen space, then shared by every collider so a
@@ -489,6 +506,18 @@
     }
     return length;
   }
+
+  const mappedDeckBallRoutes = Object.freeze(mappedDeckRoutes.map(route => {
+    const config = DECK_ROUTE_CONFIG[route.id] || {};
+    return Object.freeze({
+      ...route,
+      length: polylineLength(route.path),
+      triggerRadius: config.triggerRadius ?? DECK_ROUTE_TUNING.triggerRadius,
+      ballSpeed: config.speed ?? 170,
+      exitImpulse: config.exitImpulse ?? 146,
+      ballTransitionProgress: config.transitionProgress ?? DECK_ROUTE_TUNING.transitionProgress,
+    });
+  }));
 
   function polylineSample(points, progress) {
     if (points.length === 1) return { x: points[0].x, y: points[0].y, tangentX: 1, tangentY: 0 };
@@ -1621,7 +1650,67 @@
     transport: null,
     routeGrace: 0,
     shooterExited: false,
+    // Stage 8.10: semantic deck state is separate from projected x/y. This
+    // lets a bridge hand off to the lower lane without changing legacy map
+    // coordinates or breaking the original collision tests.
+    deckLevel: DECK_LEVELS.lower,
+    deckHeight: 0,
+    deckTransition: null,
+    deckTransitions: 0,
+    lastDeckRoute: '',
   };
+  const deckRouting = {
+    level: DECK_LEVELS.lower,
+    activeRoute: '',
+    lastRoute: '',
+    transitions: 0,
+    routeStarts: 0,
+    routeCompletions: 0,
+    lastTransition: null,
+    flash: 0,
+  };
+  const DECK_LEVEL_HEIGHTS = Object.freeze({
+    [DECK_LEVELS.lower]: 0,
+    [DECK_LEVELS.raised]: 1,
+    [DECK_LEVELS.bridge]: 0.78,
+  });
+
+  function deckHeightForLevel(level) {
+    return DECK_LEVEL_HEIGHTS[level] ?? DECK_LEVEL_HEIGHTS[DECK_LEVELS.lower];
+  }
+
+  function deckLevelLabel(level) {
+    if (level === DECK_LEVELS.raised) return 'RAISED';
+    if (level === DECK_LEVELS.bridge) return 'BRIDGE';
+    return 'LOWER';
+  }
+
+  function setBallDeckLevel(level, routeId = '', announce = true) {
+    const nextLevel = Object.values(DECK_LEVELS).includes(level) ? level : DECK_LEVELS.lower;
+    const previousLevel = ball.deckLevel;
+    ball.deckLevel = nextLevel;
+    ball.deckHeight = deckHeightForLevel(nextLevel);
+    deckRouting.level = nextLevel;
+    if (previousLevel === nextLevel) return false;
+
+    ball.deckTransitions += 1;
+    ball.lastDeckRoute = routeId;
+    deckRouting.transitions += 1;
+    deckRouting.lastRoute = routeId;
+    deckRouting.lastTransition = {
+      from: previousLevel,
+      to: nextLevel,
+      routeId,
+      at: simTime,
+    };
+    deckRouting.flash = 1;
+    if (announce) {
+      game.lastMessage = `BALL ${deckLevelLabel(nextLevel)} DECK`;
+      markAction(`DECK ${deckLevelLabel(nextLevel)}`);
+    }
+    spawnImpactFx(ball.x, ball.y, `DECK ${deckLevelLabel(nextLevel)}`);
+    return true;
+  }
 
   // Stage 2.8: shooter lane and spring plunger. Holding Space compresses
   // the spring; releasing it converts charge into launch velocity.
@@ -1849,6 +1938,14 @@
     ball.transport = null;
     ball.routeGrace = 0;
     ball.shooterExited = false;
+    ball.deckLevel = DECK_LEVELS.lower;
+    ball.deckHeight = deckHeightForLevel(DECK_LEVELS.lower);
+    ball.deckTransition = null;
+    ball.deckTransitions = 0;
+    ball.lastDeckRoute = '';
+    deckRouting.level = DECK_LEVELS.lower;
+    deckRouting.activeRoute = '';
+    deckRouting.flash = 0;
     ball.resets += 1;
     ball.trail.length = 0;
     markAction('BALL RESET');
@@ -2303,9 +2400,123 @@
     return collided;
   }
 
+  function resolveDeckRoute(routeOrId) {
+    if (typeof routeOrId === 'string') {
+      return mappedDeckBallRoutes.find(route => route.id === routeOrId) || null;
+    }
+    return routeOrId && mappedDeckBallRoutes.includes(routeOrId) ? routeOrId : null;
+  }
+
+  function startDeckRoute(routeOrId, options = {}) {
+    const route = resolveDeckRoute(routeOrId);
+    if (!route || !ball.active || ball.transport || game.state !== 'playing') return false;
+    const force = options.force === true;
+    if (!force && ball.deckLevel !== route.from) return false;
+    if (force && ball.deckLevel !== route.from) setBallDeckLevel(route.from, route.id, false);
+
+    const progress = Math.max(0, Math.min(0.94, Number(options.progress) || 0));
+    const sample = polylineSample(route.path, progress);
+    const transitionProgress = Math.max(
+      progress + 0.08,
+      Math.min(0.92, route.ballTransitionProgress),
+    );
+    const fromLevel = route.from;
+    const toLevel = route.to;
+    ball.transport = {
+      type: 'deck-route',
+      route,
+      routeId: route.id,
+      progress,
+      speed: route.ballSpeed,
+      fromLevel,
+      toLevel,
+      transitionProgress,
+      transitioned: fromLevel === toLevel,
+    };
+    ball.deckTransition = {
+      routeId: route.id,
+      from: fromLevel,
+      to: toLevel,
+      progress,
+    };
+    ball.deckHeight = deckHeightForLevel(fromLevel);
+    ball.x = sample.x;
+    ball.y = sample.y;
+    ball.previousX = ball.x;
+    ball.previousY = ball.y;
+    ball.vx = sample.tangentX * route.ballSpeed;
+    ball.vy = sample.tangentY * route.ballSpeed;
+    deckRouting.activeRoute = route.id;
+    deckRouting.routeStarts += 1;
+    game.lastMessage = `${route.label} — ${deckLevelLabel(toLevel)} ROUTE`;
+    if (options.announce !== false) markAction(`${route.label} ROUTE`);
+    return true;
+  }
+
+  function tryStartDeckRoute() {
+    if (!ball.active || ball.transport || ball.routeGrace > 0) return false;
+    for (const route of mappedDeckBallRoutes) {
+      if (ball.deckLevel !== route.from) continue;
+      const nearest = nearestPointOnPolyline(ball.x, ball.y, route.path);
+      if (nearest.distance > route.triggerRadius + ball.radius) continue;
+      if (nearest.progress > 0.22) continue;
+      const along = ball.vx * nearest.tangentX + ball.vy * nearest.tangentY;
+      if (along < 16 && Math.hypot(ball.vx, ball.vy) > 20) continue;
+      return startDeckRoute(route, { progress: nearest.progress });
+    }
+    return false;
+  }
+
+  function updateDeckRouteTransport(transport, dt) {
+    const route = transport.route;
+    if (!route || !route.length) {
+      ball.transport = null;
+      ball.deckTransition = null;
+      deckRouting.activeRoute = '';
+      return;
+    }
+    transport.progress += transport.speed * dt / route.length;
+    const sample = polylineSample(route.path, transport.progress);
+    ball.x = sample.x;
+    ball.y = sample.y;
+    ball.vx = sample.tangentX * transport.speed;
+    ball.vy = sample.tangentY * transport.speed;
+    const fromHeight = deckHeightForLevel(transport.fromLevel);
+    const toHeight = deckHeightForLevel(transport.toLevel);
+    const heightProgress = Math.max(0, Math.min(1, transport.progress));
+    ball.deckHeight = fromHeight + (toHeight - fromHeight) * heightProgress;
+    if (ball.deckTransition) ball.deckTransition.progress = heightProgress;
+
+    if (!transport.transitioned && transport.progress >= transport.transitionProgress) {
+      transport.transitioned = true;
+      setBallDeckLevel(transport.toLevel, route.id);
+      ball.deckHeight = toHeight;
+      playSound('ramp', .52);
+    }
+    if (transport.progress >= 1) {
+      const exit = polylineSample(route.path, 1);
+      ball.transport = null;
+      deckRouting.activeRoute = '';
+      deckRouting.routeCompletions += 1;
+      setBallDeckLevel(transport.toLevel, route.id, false);
+      ball.deckTransition = null;
+      ball.x = exit.x + exit.tangentX * 2;
+      ball.y = exit.y + exit.tangentY * 2;
+      ball.vx = exit.tangentX * route.exitImpulse;
+      ball.vy = exit.tangentY * route.exitImpulse;
+      ball.deckHeight = deckHeightForLevel(transport.toLevel);
+      ball.routeGrace = DECK_ROUTE_TUNING.transitionGrace;
+      game.lastMessage = `${route.label} — ${deckLevelLabel(transport.toLevel)} DECK`;
+      markAction(`${route.label} COMPLETE`);
+      spawnImpactFx(ball.x, ball.y, `DECK ${deckLevelLabel(transport.toLevel)}`);
+    }
+  }
+
   function startRampRide(ramp, progress = 0, fromHole = false) {
     if (!ramp || ramp.cooldown > 0 || ball.transport) return false;
     const sample = polylineSample(ramp.path, progress);
+    const fromDeckLevel = ball.deckLevel;
+    const toDeckLevel = ramp.kind === 'launch' ? DECK_LEVELS.raised : DECK_LEVELS.bridge;
     ramp.active = true;
     ramp.flash = 1;
     ramp.cooldown = 0.70;
@@ -2317,7 +2528,18 @@
       progress: Math.max(0, Math.min(0.94, progress)),
       speed: ramp.speed,
       fromHole,
+      fromDeckLevel,
+      toDeckLevel,
+      transitionProgress: 0.48,
+      deckTransitioned: fromDeckLevel === toDeckLevel,
     };
+    ball.deckTransition = {
+      routeId: ramp.id,
+      from: fromDeckLevel,
+      to: toDeckLevel,
+      progress: Math.max(0, Math.min(0.94, progress)),
+    };
+    ball.deckHeight = deckHeightForLevel(fromDeckLevel);
     ball.x = sample.x;
     ball.y = sample.y;
     ball.previousX = ball.x;
@@ -2359,6 +2581,7 @@
     ball.previousY = ball.y;
     ball.vx = 0;
     ball.vy = 0;
+    setBallDeckLevel(hole.deck ?? DECK_LEVELS.raised, hole.id, false);
     awardScore(hole.points, 'RAMP HOLE', hole.x, hole.y);
     playSound('rampHole', .9);
     missionEvent('hole', 1, 'RAMP HOLE');
@@ -2386,6 +2609,7 @@
     ball.previousY = ball.y;
     ball.vx = 0;
     ball.vy = 0;
+    setBallDeckLevel(wormhole.deck ?? DECK_LEVELS.bridge, wormhole.id, false);
     awardScore(wormhole.points, `${wormhole.label} WORMHOLE`, wormhole.x, wormhole.y);
     playSound('wormhole', 1);
     missionEvent('wormhole', 1, `${wormhole.label} WORMHOLE`);
@@ -2428,7 +2652,9 @@
     const transport = ball.transport;
     ball.previousX = ball.x;
     ball.previousY = ball.y;
-    if (transport.type === 'ramp') {
+    if (transport.type === 'deck-route') {
+      updateDeckRouteTransport(transport, dt);
+    } else if (transport.type === 'ramp') {
       const ramp = transport.ramp;
       transport.progress += transport.speed * dt / (ramp.length || 1);
       const sample = polylineSample(ramp.path, transport.progress);
@@ -2436,11 +2662,23 @@
       ball.y = sample.y;
       ball.vx = sample.tangentX * transport.speed;
       ball.vy = sample.tangentY * transport.speed;
+      const rampHeightProgress = Math.max(0, Math.min(1, transport.progress));
+      ball.deckHeight = deckHeightForLevel(transport.fromDeckLevel)
+        + (deckHeightForLevel(transport.toDeckLevel) - deckHeightForLevel(transport.fromDeckLevel)) * rampHeightProgress;
+      if (ball.deckTransition) ball.deckTransition.progress = rampHeightProgress;
+      if (!transport.deckTransitioned && transport.progress >= transport.transitionProgress) {
+        transport.deckTransitioned = true;
+        setBallDeckLevel(transport.toDeckLevel, ramp.id);
+        ball.deckHeight = deckHeightForLevel(transport.toDeckLevel);
+        playSound('ramp', .48);
+      }
       if (transport.progress >= 1) {
         ramp.active = false;
         ramp.flash = 1;
         const exit = polylineSample(ramp.path, 1);
         ball.transport = null;
+        setBallDeckLevel(transport.toDeckLevel, ramp.id, false);
+        ball.deckTransition = null;
         ball.x = exit.x + exit.tangentX * 2;
         ball.y = exit.y + exit.tangentY * 2;
         ball.vx = exit.tangentX * (ramp.kind === 'launch' ? 230 : 255);
@@ -2496,6 +2734,7 @@
         ball.y = wormhole.y + eject.y * (wormhole.radius + ball.radius + 1);
         ball.vx = eject.x * 238;
         ball.vy = eject.y * 238;
+        ball.deckHeight = deckHeightForLevel(ball.deckLevel);
         wormhole.hitCooldown = 0.90;
         ball.routeGrace = 0.45;
         game.lastMessage = `${wormhole.label} WORMHOLE — EJECTED`;
@@ -2513,6 +2752,8 @@
         shooterExit.flash = 1;
         const exit = polylineSample(transport.path, 1);
         ball.transport = null;
+        setBallDeckLevel(DECK_LEVELS.lower, 'shooter-exit', false);
+        ball.deckTransition = null;
         ball.x = exit.x;
         ball.y = exit.y;
         ball.vx = exit.tangentX * 165;
@@ -2565,6 +2806,8 @@
 
   function collideBallWithTableFeatures() {
     let collided = false;
+    collided = tryStartDeckRoute() || collided;
+    if (ball.transport) return true;
     collided = collideBallWithRamps() || collided;
     if (ball.transport) return true;
     collided = collideBallWithHoles() || collided;
@@ -2669,6 +2912,7 @@
     }
     shooterExit.flash = Math.max(0, shooterExit.flash - dt * 4.5);
     shooterExit.cooldown = Math.max(0, shooterExit.cooldown - dt);
+    deckRouting.flash = Math.max(0, deckRouting.flash - dt * 3.2);
     rocket.flash = Math.max(0, rocket.flash - dt * 3.6);
     wormholeState.flash = Math.max(0, wormholeState.flash - dt * 2.8);
     if (ball.shooterExited && ball.y > shooterExit.path[0].y + 58) ball.shooterExited = false;
@@ -4006,6 +4250,37 @@
     }
   }
 
+  function deckLevelColor(level) {
+    if (level === DECK_LEVELS.raised) return '#e18bd9';
+    if (level === DECK_LEVELS.bridge) return '#6dd8dc';
+    return '#9bb4bd';
+  }
+
+  function drawBallDeckDepth(inner, ballX, ballY) {
+    const color = deckLevelColor(ball.deckLevel);
+    const lift = Math.max(0, ball.deckHeight);
+    ctx.save();
+    ctx.globalAlpha = 0.24 + lift * 0.12;
+    ctx.fillStyle = '#02050b';
+    ctx.beginPath();
+    ctx.ellipse(inner.x + ball.x + 2, inner.y + ball.y + ball.radius + 2, 4.8 + lift * 1.1, 1.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (lift > 0 || deckRouting.activeRoute) {
+      ctx.globalAlpha = 0.5 + deckRouting.flash * 0.25;
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 5 + deckRouting.flash * 4;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.arc(inner.x + ball.x, inner.y + ball.y, ball.radius + 2.4 + lift, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    if (lift > 0 || deckRouting.activeRoute) {
+      pixelText(deckLevelLabel(ball.deckLevel), ballX, ballY - ball.radius - 7, .48, color, 'center');
+    }
+  }
+
   function drawTable(t) {
     const bx = board.x;
     const by = board.y;
@@ -4219,9 +4494,12 @@
     drawTransientFx(inner);
 
     // Dynamic ball and a short trail, in the same screen coordinates as the
-    // mapped colliders above.
+    // mapped colliders above. A small visual lift/shadow communicates the
+    // semantic deck level without moving the legacy projected collision point.
+    const ballLift = ball.deckHeight * .75;
     const ballX = inner.x + ball.x;
-    const ballY = inner.y + ball.y;
+    const ballY = inner.y + ball.y - ballLift;
+    drawBallDeckDepth(inner, ballX, ballY);
     for (let i = 0; i < ball.trail.length; i++) {
       const point = ball.trail[i];
       const alpha = (i + 1) / ball.trail.length * 0.20 * point.life;
@@ -4525,6 +4803,7 @@
     viewport: deckViewport,
     sections: mappedDeckSections,
     routes: mappedDeckRoutes,
+    ballRoutes: mappedDeckBallRoutes,
     accessGuides: mappedDeckAccessGuides,
     mapPoint: mapDeckPoint,
     mapRect: mapDeckRect,
@@ -4538,6 +4817,8 @@
   window.spaceCadetAudio = audio;
   window.spaceCadetGame = game;
   window.spaceCadetBall = ball;
+  window.spaceCadetDeckRouting = deckRouting;
+  window.spaceCadetDeckRouteTuning = DECK_ROUTE_TUNING;
   window.spaceCadetPhysics = ballPhysics;
   window.spaceCadetTuning = PHYSICS_TUNING;
   window.spaceCadetWalls = walls;
@@ -4577,6 +4858,13 @@
       startMission,
       missionEvent,
       addRankProgress,
+      startDeckRoute(routeId, options = {}) {
+        return startDeckRoute(routeId, options);
+      },
+      setDeckLevel(level) {
+        setBallDeckLevel(level, 'test', false);
+        return ball.deckLevel;
+      },
       render() {
         draw(simTime * 1000);
       },

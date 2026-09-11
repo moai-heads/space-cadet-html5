@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet deck routing smoke test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const app = {
+        design: window.spaceCadetDeckDesign,
+        routing: window.spaceCadetDeckRouting,
+        ball: window.spaceCadetBall,
+        game: window.spaceCadetGame,
+        plunger: window.spaceCadetPlunger,
+        ramps: window.spaceCadetRamps,
+        test: window.spaceCadetTest,
+      };
+
+      function placeBall(level) {
+        app.ball.active = true;
+        app.ball.transport = null;
+        app.ball.shooterExited = false;
+        app.ball.x = 170;
+        app.ball.y = 220;
+        app.ball.previousX = app.ball.x;
+        app.ball.previousY = app.ball.y;
+        app.ball.vx = 0;
+        app.ball.vy = 0;
+        app.plunger.armed = false;
+        app.test.setDeckLevel(level);
+      }
+
+      function startGame() {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter' }));
+        app.test.step(0.02);
+      }
+
+      function run() {
+        const { design, routing, ball, game, ramps, test } = app;
+        const routes = design.ballRoutes;
+        check('three ball routes expose lengths and level endpoints',
+          routes.length === 3 && routes.every(route => route.length > 20
+            && Number.isInteger(route.from) && Number.isInteger(route.to)
+            && route.from !== route.to));
+        check('route metadata matches the raised-deck guide set',
+          routes.some(route => route.id === 'left-island-access' && route.to === design.levels.raised)
+          && routes.some(route => route.id === 'upper-deck-access' && route.to === design.levels.raised)
+          && routes.some(route => route.id === 'right-overpass-return' && route.from === design.levels.bridge
+            && route.to === design.levels.lower));
+        check('ball begins on the lower deck', ball.deckLevel === design.levels.lower && routing.level === design.levels.lower);
+
+        startGame();
+        check('routing test starts a game', game.state === 'playing');
+
+        const islandRoute = routes.find(route => route.id === 'left-island-access');
+        placeBall(design.levels.lower);
+        const startsBefore = routing.routeStarts;
+        const transitionsBefore = routing.transitions;
+        check('lower-to-raised route starts from the lower deck',
+          test.startDeckRoute(islandRoute.id, { announce: false })
+          && ball.transport && ball.transport.type === 'deck-route'
+          && ball.transport.fromLevel === design.levels.lower);
+        check('route start counter increments', routing.routeStarts === startsBefore + 1);
+
+        test.step(islandRoute.length / islandRoute.ballSpeed * islandRoute.ballTransitionProgress + 0.02);
+        check('ball changes level at the route handoff',
+          ball.deckLevel === design.levels.raised
+          && routing.transitions === transitionsBefore + 1
+          && (!ball.deckTransition || ball.deckTransition.to === design.levels.raised));
+        test.step(islandRoute.length / islandRoute.ballSpeed + 0.12);
+        check('raised route ejects above the lower bed',
+          !ball.transport && ball.deckLevel === design.levels.raised
+          && routing.routeCompletions >= 1 && Math.hypot(ball.vx, ball.vy) > 80);
+
+        const returnRoute = routes.find(route => route.id === 'right-overpass-return');
+        placeBall(design.levels.bridge);
+        const returnStarts = routing.routeStarts;
+        check('bridge-to-lower return route starts on the bridge',
+          test.startDeckRoute(returnRoute.id, { announce: false })
+          && ball.transport && ball.transport.fromLevel === design.levels.bridge);
+        test.step(returnRoute.length / returnRoute.ballSpeed + 0.12);
+        check('overpass return hands the ball back to the lower bed',
+          !ball.transport && ball.deckLevel === design.levels.lower
+          && routing.routeStarts === returnStarts + 1);
+
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyR', key: 'KeyR' }));
+        startGame();
+        const launchRamp = ramps.find(ramp => ramp.kind === 'launch');
+        ball.active = true;
+        ball.transport = null;
+        ball.x = launchRamp.entry.x;
+        ball.y = launchRamp.entry.y;
+        ball.previousX = ball.x;
+        ball.previousY = ball.y;
+        ball.vx = 0;
+        ball.vy = 0;
+        app.plunger.armed = false;
+        test.setDeckLevel(design.levels.lower);
+        launchRamp.cooldown = 0;
+        test.step(0.01);
+        check('launch ramp declares a raised-deck destination',
+          ball.transport && ball.transport.type === 'ramp'
+          && ball.transport.toDeckLevel === design.levels.raised);
+        test.step(launchRamp.length / launchRamp.speed * 0.55);
+        check('ramp handoff updates the ball deck level', ball.deckLevel === design.levels.raised);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
