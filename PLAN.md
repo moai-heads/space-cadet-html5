@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.3 — layered draw order
+**Current position:** Stage 8.4 — lower-bed art
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -88,9 +88,11 @@ check passes.
   the 342×482 viewport fit, lower/raised/bridge levels, named sections, and
   three access route paths. `tests/deck-scaffold-smoke.html` passes; commit
   `4b995d0`.
-- [-] **8.3 Layered draw order (≤4 min):** introduce explicit `lower`,
-  `raised`, `bridge-shadow`, `bridge-top`, and `ball` render passes.
-- [ ] **8.4 Lower-bed art (≤4 min):** replace the flat lower field with navy
+- [x] **8.3 Layered draw order (≤4 min):** introduce explicit `lower`,
+  `raised`, `bridge-shadow`, `bridge-top`, and `ball` render passes. Added the
+  named pass list and render hooks without replacing the existing physics map.
+  `tests/deck-layers-smoke.html` passes; checkpoint commit follows.
+- [-] **8.4 Lower-bed art (≤4 min):** replace the flat lower field with navy
   gradients, purple channels, lightning-like veins, and the central reactor.
 - [ ] **8.5 Raised left island (≤4 min):** draw the purple upper-left island,
   its lip, support posts, lamps, and access mouth.

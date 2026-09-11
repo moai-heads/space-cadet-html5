@@ -40,6 +40,7 @@
   // render and routing stages are ready to consume this metadata.
   const DECK_REFERENCE = Object.freeze({ width: 342, height: 482 });
   const DECK_LEVELS = Object.freeze({ lower: 0, raised: 1, bridge: 2 });
+  const DECK_RENDER_PASSES = Object.freeze(['lower', 'raised', 'bridge-shadow', 'bridge-top', 'ball']);
   const deckViewport = (() => {
     const scale = Math.min(playfield.w / DECK_REFERENCE.width, playfield.h / DECK_REFERENCE.height);
     return Object.freeze({
@@ -2953,6 +2954,29 @@
     ctx.restore();
   }
 
+  // Stage 8.3: keep deck z-order explicit. The lower field is painted first;
+  // raised geometry is then allowed to sit above its collision art; bridge
+  // shadows go below bridge tops; the ball remains the final visible pass.
+  function drawDeckLowerPass(inner, t) {
+    void inner;
+    void t;
+  }
+
+  function drawDeckBridgeShadowPass(inner, t) {
+    void inner;
+    void t;
+  }
+
+  function drawDeckRaisedPass(inner, t) {
+    void inner;
+    void t;
+  }
+
+  function drawDeckBridgeTopPass(inner, t) {
+    void inner;
+    void t;
+  }
+
   function drawTableRuleLamps(inner) {
     const rows = [
       { label: 'BOOST', x: 17, y: 105, count: 3, value: rules.boosterProgress, color: '#e6c75f' },
@@ -3503,6 +3527,7 @@
     ctx.save();
     roundedRect(inner.x + 4, inner.y + 4, inner.w - 8, inner.h - 8, 3);
     ctx.clip();
+    drawDeckLowerPass(inner, t);
 
     // Repeated dust/texture gives the flat procedural field the same low-res
     // visual density as the source bitmap without importing its pixels.
@@ -3576,6 +3601,8 @@
     drawGateGraphics(inner);
     drawRolloverGraphics(inner);
     drawTargetGraphics(inner);
+
+    drawDeckBridgeShadowPass(inner, t);
 
     // Stage 3.3: mapped ramp centerlines, ramp hole, wormhole sinks, and the
     // shooter exit all use the same projected coordinates as their colliders.
@@ -3673,6 +3700,8 @@
       text(`+${popup.points}`, inner.x + popup.x, inner.y + popup.y, 8, '#ffe88c', 'center');
       ctx.restore();
     }
+    drawDeckRaisedPass(inner, t);
+    drawDeckBridgeTopPass(inner, t);
     drawTransientFx(inner);
 
     // Dynamic ball and a short trail, in the same screen coordinates as the
@@ -3967,6 +3996,7 @@
   canvas.addEventListener('contextmenu', event => event.preventDefault());
 
   // Exposed only for later stages and quick browser smoke tests.
+  window.spaceCadetDeckPasses = DECK_RENDER_PASSES;
   window.spaceCadetDeckDesign = {
     reference: DECK_REFERENCE,
     levels: DECK_LEVELS,
