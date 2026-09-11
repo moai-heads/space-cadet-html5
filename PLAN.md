@@ -91,7 +91,7 @@ check passes.
 - [x] **8.3 Layered draw order (≤4 min):** introduce explicit `lower`,
   `raised`, `bridge-shadow`, `bridge-top`, and `ball` render passes. Added the
   named pass list and render hooks without replacing the existing physics map.
-  `tests/deck-layers-smoke.html` passes; checkpoint commit follows.
+  `tests/deck-layers-smoke.html` passes; commit `ca1f465`.
 - [-] **8.4 Lower-bed art (≤4 min):** replace the flat lower field with navy
   gradients, purple channels, lightning-like veins, and the central reactor.
 - [ ] **8.5 Raised left island (≤4 min):** draw the purple upper-left island,
