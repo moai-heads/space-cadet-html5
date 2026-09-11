@@ -45,6 +45,9 @@
         check('keyboard left flipper press', input.left);
         key('keyup', 'KeyZ');
         check('keyboard left flipper release', !input.left);
+        check('flipper travel uses the correct handedness',
+          window.spaceCadetFlippers.left.activeAngle < window.spaceCadetFlippers.left.restAngle
+          && window.spaceCadetFlippers.right.activeAngle > window.spaceCadetFlippers.right.restAngle);
 
         const rect = canvas.getBoundingClientRect();
         const lowerY = rect.bottom - 8;
