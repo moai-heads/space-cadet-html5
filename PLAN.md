@@ -118,7 +118,7 @@ check passes.
   rollovers, ramps, and holes with their deck/height and render z-order. Added
   lower/raised/bridge tags, render-pass names, z-order values, bank-specific
   mappings, and an exposed metadata smoke harness.
-  `tests/deck-metadata-smoke.html` passes; checkpoint commit follows.
+  `tests/deck-metadata-smoke.html` passes; commit `8674d87`.
 - [-] **8.9 Raised access routes (≤4 min):** add entry/exit guide paths from
   the lower bed to the island and upper deck.
 - [ ] **8.10 Ball level routing (≤4 min):** add a small deck state to ball
