@@ -1,7 +1,7 @@
 # Space Cadet HTML5 Recreation Plan
 
 **Last updated:** September 11, 2026
-**Current position:** Stage 8.11 — lower apron and flipper art
+**Current position:** Stage 8.12 — palette and feature pass
 **Status legend:** `[x]` complete · `[-]` in progress · `[ ]` pending
 
 This file is the working source of truth for the build. Update it whenever a
@@ -130,8 +130,13 @@ check passes.
   mid-route level handoffs, ramp destination levels, depth-aware ball shading,
   and `tests/deck-routing-smoke.html`; the full runner passes 22/22. Commit
   `97b2213`.
-- [ ] **8.11 Lower apron and flipper art (≤4 min):** reshape the lower apron,
-  slings, kickers, and flippers to match the reference silhouette.
+- [x] **8.11 Lower apron and flipper art (≤4 min):** reshape the lower apron,
+  slings, kickers, and flippers to match the reference silhouette. Added a
+  portrait-mapped foreground apron with layered purple wings, recessed center
+  throat, chrome/cyan edge rails, animated lamps, reference-shaped slings and
+  kick cups, and separate raised-deck flipper skins while preserving the legacy
+  collision geometry. Added `tests/deck-apron-smoke.html`; the full runner passes
+  23/23. Implementation commit `3691a74`.
 - [ ] **8.12 Palette and feature pass (≤4 min):** tune lamps, bumpers, rails,
   chrome highlights, and glow to the reference's purple/teal/red balance.
 - [ ] **8.13 Deck regression smoke test (≤4 min):** test render layers,
