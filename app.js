@@ -165,7 +165,10 @@
   // fast ball, while the handoff happens mid-route so the raised/bridge level
   // changes before the ball reaches the far lip.
   const DECK_ROUTE_TUNING = Object.freeze({
-    triggerRadius: 12,
+    // Capture only inside the visible lane, then blend onto its centerline so
+    // a low-FPS frame never appears to teleport the ball through a rail.
+    triggerRadius: 6,
+    captureDuration: 0.055,
     transitionProgress: 0.52,
     transitionGrace: 0.42,
   });
@@ -2492,6 +2495,12 @@
       toLevel,
       transitionProgress,
       transitioned: fromLevel === toLevel,
+      captureElapsed: 0,
+      captureDuration: DECK_ROUTE_TUNING.captureDuration,
+      captureStartX: ball.x,
+      captureStartY: ball.y,
+      captureTargetX: sample.x,
+      captureTargetY: sample.y,
     };
     ball.deckTransition = {
       routeId: route.id,
@@ -2500,8 +2509,8 @@
       progress,
     };
     ball.deckHeight = deckHeightForLevel(fromLevel);
-    ball.x = sample.x;
-    ball.y = sample.y;
+    // Keep the current position for a short, bounded capture blend. The
+    // route becomes a visible lane transfer instead of an instantaneous snap.
     ball.previousX = ball.x;
     ball.previousY = ball.y;
     ball.vx = sample.tangentX * route.ballSpeed;
@@ -2521,7 +2530,7 @@
       if (nearest.distance > route.triggerRadius + ball.radius) continue;
       if (nearest.progress > 0.22) continue;
       const along = ball.vx * nearest.tangentX + ball.vy * nearest.tangentY;
-      if (along < 16 && Math.hypot(ball.vx, ball.vy) > 20) continue;
+      if (along < 12) continue;
       return startDeckRoute(route, { progress: nearest.progress });
     }
     return false;
@@ -2533,6 +2542,20 @@
       ball.transport = null;
       ball.deckTransition = null;
       deckRouting.activeRoute = '';
+      return;
+    }
+    if (transport.captureElapsed < transport.captureDuration) {
+      transport.captureElapsed = Math.min(transport.captureDuration, transport.captureElapsed + dt);
+      const captureT = transport.captureDuration > 0
+        ? transport.captureElapsed / transport.captureDuration : 1;
+      const eased = captureT * captureT * (3 - 2 * captureT);
+      ball.x = transport.captureStartX
+        + (transport.captureTargetX - transport.captureStartX) * eased;
+      ball.y = transport.captureStartY
+        + (transport.captureTargetY - transport.captureStartY) * eased;
+      const captureSample = polylineSample(route.path, transport.progress);
+      ball.vx = captureSample.tangentX * transport.speed;
+      ball.vy = captureSample.tangentY * transport.speed;
       return;
     }
     transport.progress += transport.speed * dt / route.length;
@@ -2592,6 +2615,12 @@
       toDeckLevel,
       transitionProgress: 0.48,
       deckTransitioned: fromDeckLevel === toDeckLevel,
+      captureElapsed: 0,
+      captureDuration: DECK_ROUTE_TUNING.captureDuration,
+      captureStartX: ball.x,
+      captureStartY: ball.y,
+      captureTargetX: sample.x,
+      captureTargetY: sample.y,
     };
     ball.deckTransition = {
       routeId: ramp.id,
@@ -2600,13 +2629,14 @@
       progress: Math.max(0, Math.min(0.94, progress)),
     };
     ball.deckHeight = deckHeightForLevel(fromDeckLevel);
-    ball.x = sample.x;
-    ball.y = sample.y;
+    // Capture from the approach point instead of overwriting the ball's
+    // position immediately; this keeps the visible ramp entry and collision
+    // response coherent on slow displays.
     ball.previousX = ball.x;
     ball.previousY = ball.y;
     ball.vx = 0;
     ball.vy = 0;
-    if (!fromHole) awardScore(ramp.points, ramp.kind === 'launch' ? 'LAUNCH RAMP' : 'HYPERSPACE', ball.x, ball.y);
+    if (!fromHole) awardScore(ramp.points, ramp.kind === 'launch' ? 'LAUNCH RAMP' : 'HYPERSPACE', sample.x, sample.y);
     game.lastMessage = ramp.kind === 'launch' ? 'LAUNCH RAMP — ROCKET RUN' : 'HYPERSPACE RAMP';
     markAction(ramp.label);
     return true;
@@ -2716,6 +2746,20 @@
       updateDeckRouteTransport(transport, dt);
     } else if (transport.type === 'ramp') {
       const ramp = transport.ramp;
+      if (transport.captureElapsed < transport.captureDuration) {
+        transport.captureElapsed = Math.min(transport.captureDuration, transport.captureElapsed + dt);
+        const captureT = transport.captureDuration > 0
+          ? transport.captureElapsed / transport.captureDuration : 1;
+        const eased = captureT * captureT * (3 - 2 * captureT);
+        ball.x = transport.captureStartX
+          + (transport.captureTargetX - transport.captureStartX) * eased;
+        ball.y = transport.captureStartY
+          + (transport.captureTargetY - transport.captureStartY) * eased;
+        const captureSample = polylineSample(ramp.path, transport.progress);
+        ball.vx = captureSample.tangentX * transport.speed;
+        ball.vy = captureSample.tangentY * transport.speed;
+        return;
+      }
       transport.progress += transport.speed * dt / (ramp.length || 1);
       const sample = polylineSample(ramp.path, transport.progress);
       ball.x = sample.x;
