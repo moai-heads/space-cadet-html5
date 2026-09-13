@@ -199,6 +199,8 @@
     flipperActiveRestitution: 1.01,
     flipperActiveKick: 108,
     flipperRestKick: 16,
+    flipperRiseSpeed: 96,
+    flipperFallSpeed: 48,
     collisionSlop: 0.08,
     tangentialDamping: 0.024,
     drainY: 405,
@@ -785,10 +787,12 @@
 
   // Stage 2.2: simulation time is independent of display refresh rate.
   const FIXED_DT = 1 / 120;
+  const MAX_STEPS_PER_FRAME = 8;
   let accumulator = 0;
   let lastFrameTime = null;
   let simTime = 0;
   let simTicks = 0;
+  let droppedSimulationTime = 0;
   let renderFrames = 0;
 
   // Stage 2.3: one normalized input layer for keyboard, mouse, and touch.
@@ -1563,17 +1567,20 @@
 
   function onKeyDown(event) {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
-    unlockAudio();
     const action = keyAction(event.code);
     if (action || ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyP', 'KeyH', 'KeyM', 'KeyR', 'KeyF', 'F11', 'Enter', 'Escape'].includes(event.code)) {
       event.preventDefault();
     }
 
     if (action) {
+      // Prioritize the control edge before lazy AudioContext construction. On
+      // the first cabinet press, audio setup must not sit in front of the bat.
       setButton(action, true);
+      unlockAudio();
       return;
     }
     if (event.repeat) return;
+    unlockAudio();
 
     if (event.code === 'KeyA' || event.code === 'ArrowLeft') {
       input.nudgeX = -1;
@@ -1635,7 +1642,6 @@
 
   function onPointerDown(event) {
     event.preventDefault();
-    unlockAudio();
     if (canvas.focus) canvas.focus({ preventScroll: true });
     if (input.pointerAction) releaseAllControls('TOUCH RESET');
     const pos = pointerPosition(event);
@@ -1649,6 +1655,7 @@
       if (canvas.setPointerCapture && event.pointerId != null) canvas.setPointerCapture(event.pointerId);
     } catch (_) { /* synthetic/test pointer events may not be capturable */ }
     setButton(action, true, 'TOUCH');
+    unlockAudio();
   }
 
   function onPointerMove(event) {
@@ -3054,7 +3061,9 @@
     flipper.pressed = pressed;
     flipper.previousAngle = flipper.angle;
     const target = pressed ? flipper.activeAngle : flipper.restAngle;
-    const travelSpeed = pressed ? 32 : 16;
+    const travelSpeed = pressed
+      ? PHYSICS_TUNING.flipperRiseSpeed
+      : PHYSICS_TUNING.flipperFallSpeed;
     flipper.angle = approach(flipper.angle, target, travelSpeed * dt);
     flipper.angularVelocity = (flipper.angle - flipper.previousAngle) / dt;
     flipper.flash = Math.max(0, flipper.flash - dt * 5);
@@ -4556,14 +4565,22 @@
     return '#9bb4bd';
   }
 
-  function drawBallDeckDepth(inner, ballX, ballY) {
+  function renderedBallPosition() {
+    const alpha = Math.max(0, Math.min(1, accumulator / FIXED_DT));
+    return {
+      x: ball.previousX + (ball.x - ball.previousX) * alpha,
+      y: ball.previousY + (ball.y - ball.previousY) * alpha,
+    };
+  }
+
+  function drawBallDeckDepth(inner, ballX, ballY, physicsX = ball.x, physicsY = ball.y) {
     const color = deckLevelColor(ball.deckLevel);
     const lift = Math.max(0, ball.deckHeight);
     ctx.save();
     ctx.globalAlpha = 0.24 + lift * 0.12;
     ctx.fillStyle = '#02050b';
     ctx.beginPath();
-    ctx.ellipse(inner.x + ball.x + 2, inner.y + ball.y + ball.radius + 2, 4.8 + lift * 1.1, 1.8, 0, 0, Math.PI * 2);
+    ctx.ellipse(inner.x + physicsX + 2, inner.y + physicsY + ball.radius + 2, 4.8 + lift * 1.1, 1.8, 0, 0, Math.PI * 2);
     ctx.fill();
     if (lift > 0 || deckRouting.activeRoute) {
       ctx.globalAlpha = 0.5 + deckRouting.flash * 0.25;
@@ -4572,7 +4589,7 @@
       ctx.shadowBlur = 5 + deckRouting.flash * 4;
       ctx.lineWidth = 0.8;
       ctx.beginPath();
-      ctx.arc(inner.x + ball.x, inner.y + ball.y, ball.radius + 2.4 + lift, 0, Math.PI * 2);
+      ctx.arc(inner.x + physicsX, inner.y + physicsY, ball.radius + 2.4 + lift, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
@@ -4801,10 +4818,11 @@
     // Dynamic ball and a short trail, in the same screen coordinates as the
     // mapped colliders above. A small visual lift/shadow communicates the
     // semantic deck level without moving the legacy projected collision point.
+    const renderBall = renderedBallPosition();
     const ballLift = ball.deckHeight * .75;
-    const ballX = inner.x + ball.x;
-    const ballY = inner.y + ball.y - ballLift;
-    drawBallDeckDepth(inner, ballX, ballY);
+    const ballX = inner.x + renderBall.x;
+    const ballY = inner.y + renderBall.y - ballLift;
+    drawBallDeckDepth(inner, ballX, ballY, renderBall.x, renderBall.y);
     for (let i = 0; i < ball.trail.length; i++) {
       const point = ball.trail[i];
       const alpha = (i + 1) / ball.trail.length * 0.20 * point.life;
@@ -5045,9 +5063,18 @@
     lastFrameTime = now;
     accumulator += elapsed;
 
-    while (accumulator >= FIXED_DT) {
+    let steps = 0;
+    while (accumulator >= FIXED_DT && steps < MAX_STEPS_PER_FRAME) {
       updateSimulation(FIXED_DT);
       accumulator -= FIXED_DT;
+      steps += 1;
+    }
+    // Do not spend an entire frame replaying stale physics after a cabinet
+    // hitch. Dropping only the excess backlog keeps controls and rendering
+    // responsive instead of turning one hitch into a visible teleport.
+    if (steps === MAX_STEPS_PER_FRAME && accumulator >= FIXED_DT) {
+      droppedSimulationTime += accumulator;
+      accumulator = 0;
     }
 
     draw(simTime * 1000);
@@ -5160,6 +5187,8 @@
     tuning: RENDER_TUNING,
     get backingDpr() { return backingDpr; },
     get cssScale() { return cssScale; },
+    get maxStepsPerFrame() { return MAX_STEPS_PER_FRAME; },
+    get droppedSimulationTime() { return droppedSimulationTime; },
   };
   window.spaceCadetRules = rules;
   window.spaceCadetMission = mission;
