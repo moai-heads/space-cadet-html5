@@ -38,3 +38,7 @@ Validated pages:
 - `gameplay-smoke.html` at 390×844
 
 Environment used: Chromium 152.0.7977.82, Node v26.8.1, Python 3.14.7.
+
+## Public deployment check
+
+On September 13, 2026, `https://moai-heads.github.io/space-cadet-html5/` returned HTTP 200. Its served `app.js` SHA-256 matched the local build, and a real Chromium check measured 60 FPS over two seconds at 1200×832 with the shooter exit and upper-deck bumper path exercised.

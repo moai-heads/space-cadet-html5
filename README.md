@@ -42,6 +42,7 @@ The demo is served from the repository `gh-pages` branch and was smoke-tested ov
 - **Stage 8 complete:** the supplied-reference raised-deck redesign is delivered; see `PLAN.md` and `REGRESSION.md` for the checkpoints and validation details.
 - **Stage 10.4 complete:** stabilized fast-ball transport with bounded microsteps, eased shooter/route captures, post-ejection grace, and a mapped visible shooter exit.
 - **Stage 10.5 complete:** cached static portrait artwork, mapped visible-deck bumpers and walls, removed phantom production colliders from portrait mode, added route rails, and added transient contact labels. The September 13, 2026 local suite passes **28/28**.
+- **Stage 10.6 complete:** redeployed the corrected build to GitHub Pages as `gh-pages` commit `078edb5`; the public app returns HTTP 200, matches the local runtime hash, renders at 60 FPS in Chromium, and passes the shooter-exit check on September 13, 2026.
 
 ## Run
 

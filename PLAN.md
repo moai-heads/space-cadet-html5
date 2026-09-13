@@ -229,5 +229,15 @@ also drift apart.
   portrait render cache, visible-deck bumper/wall mapping, production filtering
   for hidden legacy colliders, route rails, readable `PULL`/`LAUNCH` feedback,
   and `tests/collision-clarity-smoke.html`; the full suite passes 28/28.
-- [ ] **10.6 Validation and redeploy (≤4 min):** publish the corrected `gh-pages`
+- [x] **10.6 Validation and redeploy (≤4 min):** publish the corrected `gh-pages`
   build, verify the live HTTPS page, and record the public smoke result.
+  Local Chromium regression passes 28/28; published commit `078edb5` serves
+  the same `app.js` hash over HTTPS, returns HTTP 200, renders at 60 FPS in
+  the public Chromium check, and routes a launched ball through the visible
+  shooter exit on September 13, 2026.
+
+**Stage 10 delivery notes:** the September 13, 2026 cabinet fixes are live at
+`https://moai-heads.github.io/space-cadet-html5/`. The portrait renderer now
+uses a cached logical deck layer, the production collision set contains only
+visible deck hardware/routes, input edges do not construct audio synchronously,
+and transport entry/exit is bounded and eased.
