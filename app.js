@@ -2544,22 +2544,26 @@
       deckRouting.activeRoute = '';
       return;
     }
+    let sample;
     if (transport.captureElapsed < transport.captureDuration) {
       transport.captureElapsed = Math.min(transport.captureDuration, transport.captureElapsed + dt);
+      transport.progress += transport.speed * dt / route.length;
       const captureT = transport.captureDuration > 0
         ? transport.captureElapsed / transport.captureDuration : 1;
       const eased = captureT * captureT * (3 - 2 * captureT);
-      ball.x = transport.captureStartX
-        + (transport.captureTargetX - transport.captureStartX) * eased;
-      ball.y = transport.captureStartY
-        + (transport.captureTargetY - transport.captureStartY) * eased;
       const captureSample = polylineSample(route.path, transport.progress);
+      ball.x = transport.captureStartX
+        + (captureSample.x - transport.captureStartX) * eased;
+      ball.y = transport.captureStartY
+        + (captureSample.y - transport.captureStartY) * eased;
       ball.vx = captureSample.tangentX * transport.speed;
       ball.vy = captureSample.tangentY * transport.speed;
-      return;
+      if (transport.captureElapsed < transport.captureDuration) return;
+      sample = captureSample;
+    } else {
+      transport.progress += transport.speed * dt / route.length;
+      sample = polylineSample(route.path, transport.progress);
     }
-    transport.progress += transport.speed * dt / route.length;
-    const sample = polylineSample(route.path, transport.progress);
     ball.x = sample.x;
     ball.y = sample.y;
     ball.vx = sample.tangentX * transport.speed;
@@ -2746,22 +2750,26 @@
       updateDeckRouteTransport(transport, dt);
     } else if (transport.type === 'ramp') {
       const ramp = transport.ramp;
+      let sample;
       if (transport.captureElapsed < transport.captureDuration) {
         transport.captureElapsed = Math.min(transport.captureDuration, transport.captureElapsed + dt);
+        transport.progress += transport.speed * dt / (ramp.length || 1);
         const captureT = transport.captureDuration > 0
           ? transport.captureElapsed / transport.captureDuration : 1;
         const eased = captureT * captureT * (3 - 2 * captureT);
-        ball.x = transport.captureStartX
-          + (transport.captureTargetX - transport.captureStartX) * eased;
-        ball.y = transport.captureStartY
-          + (transport.captureTargetY - transport.captureStartY) * eased;
         const captureSample = polylineSample(ramp.path, transport.progress);
+        ball.x = transport.captureStartX
+          + (captureSample.x - transport.captureStartX) * eased;
+        ball.y = transport.captureStartY
+          + (captureSample.y - transport.captureStartY) * eased;
         ball.vx = captureSample.tangentX * transport.speed;
         ball.vy = captureSample.tangentY * transport.speed;
-        return;
+        if (transport.captureElapsed < transport.captureDuration) return;
+        sample = captureSample;
+      } else {
+        transport.progress += transport.speed * dt / (ramp.length || 1);
+        sample = polylineSample(ramp.path, transport.progress);
       }
-      transport.progress += transport.speed * dt / (ramp.length || 1);
-      const sample = polylineSample(ramp.path, transport.progress);
       ball.x = sample.x;
       ball.y = sample.y;
       ball.vx = sample.tangentX * transport.speed;
