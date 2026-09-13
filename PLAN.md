@@ -185,11 +185,14 @@ contains only the static game entry point and runtime.
 
 - [x] **9.1 Hosting plan (≤4 min):** choose the repository Pages site, reserve
   the public URL, and document the branch-based static deployment path.
-- [ ] **9.2 Publish branch (≤4 min):** create/update `gh-pages` with
-  `index.html`, `app.js`, and a small deployment marker, then push it.
-- [ ] **9.3 Enable Pages (≤4 min):** configure the repository Pages source to
-  `gh-pages` at `/` and wait for the first build.
-- [ ] **9.4 Public smoke check (≤4 min):** verify the deployed HTML and
-  JavaScript over HTTPS and launch the game in Chromium.
-- [ ] **9.5 Delivery note (≤4 min):** record the live URL, deployment result,
-  and verification commit in `README.md` and this plan.
+- [x] **9.2 Publish branch (≤4 min):** created the clean orphan `gh-pages`
+  branch with `index.html`, `app.js`, `DEPLOYMENT.md`, and `.nojekyll`, then
+  pushed published commit `4832164`.
+- [x] **9.3 Enable Pages (≤4 min):** repository Pages is configured for
+  `gh-pages` at `/`; the Pages API reports `built`.
+- [x] **9.4 Public smoke check (≤4 min):** HTTPS returned HTTP 200 for both
+  the document and runtime; Chromium loaded the public page and produced a
+  non-black rendered screenshot on September 13, 2026.
+- [x] **9.5 Delivery note (≤4 min):** recorded the live URL and verification
+  details in `README.md` and `DEPLOYMENT.md`; this checkpoint is committed
+  below.
