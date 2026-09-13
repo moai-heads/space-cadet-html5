@@ -196,3 +196,32 @@ contains only the static game entry point and runtime.
 - [x] **9.5 Delivery note (≤4 min):** recorded the live URL and verification
   details in `README.md` and `DEPLOYMENT.md`; this checkpoint is committed
   below.
+
+## Stage 10 — cabinet performance and collision clarity
+
+The September 13, 2026 cabinet report exposed a gap in the earlier checks:
+headless Chromium at default device scale passed, but forcing a 2× backing
+surface dropped the real animation loop to about 28 FPS. The collision pass is
+finite; the expensive part is repeated full-resolution Canvas 2D glow/shadow
+rendering, while the visible raised-deck art and legacy projected colliders
+also drift apart.
+
+- [x] **10.1 Reproduce the report (≤4 min):** profile the public build at
+  device scale 1×/2× and under CPU throttling; confirm the 2× render path can
+  fall below 30 FPS and document the finite collision loops. No JavaScript
+  infinite loop was found.
+- [ ] **10.2 Render budget (≤4 min):** cap the backing surface to a deliberate
+  retro-friendly scale, request a low-latency 2D context, and add a real
+  animation-loop smoke check.
+- [ ] **10.3 Input/animation response (≤4 min):** shorten flipper travel,
+  preserve synchronous input state, and interpolate ball presentation between
+  fixed simulation ticks.
+- [ ] **10.4 Collision stability (≤4 min):** reduce accidental route capture,
+  add bounded catch-up, and prevent transport entry/exit from visibly snapping
+  through geometry.
+- [ ] **10.5 Deck collision clarity (≤4 min):** remove obsolete projected art
+  from the portrait renderer, align major visible bumpers/bounds with their
+  active colliders, and show the latest contact name briefly.
+- [ ] **10.6 Validation and redeploy (≤4 min):** extend smoke coverage, run the
+  complete suite, publish the corrected `gh-pages` build, and verify it over
+  HTTPS.
