@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#06101d">
+  <title>3D Pinball — Space Cadet (HTML5)</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; min-height: 100%; background: #02050a; }
+    body {
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      padding: max(12px, env(safe-area-inset-top))
+        max(12px, env(safe-area-inset-right))
+        max(12px, env(safe-area-inset-bottom))
+        max(12px, env(safe-area-inset-left));
+      overflow: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #c8e9ff;
+      background:
+        radial-gradient(ellipse at 50% 15%, rgba(21,74,119,.32), transparent 50%),
+        linear-gradient(135deg, #010207 0%, #071321 48%, #02050b 100%);
+    }
+    #wrap {
+      width: min(1120px, calc(100vw - 24px), calc((100svh - 104px) * 1.4423077));
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+    }
+    #screen {
+      width: 100%;
+      aspect-ratio: 600 / 416;
+      position: relative;
+      border: 1px solid #1c5a7d;
+      border-radius: 8px;
+      background: #02070e;
+      box-shadow:
+        0 0 0 2px #071828,
+        0 0 28px rgba(0, 149, 255, .16),
+        0 22px 60px rgba(0,0,0,.75);
+      overflow: hidden;
+    }
+    #game {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      border-radius: 6px;
+      background: #02070e;
+      touch-action: none;
+      user-select: none;
+      cursor: crosshair;
+    }
+    #toolbar {
+      width: 100%;
+      min-height: 28px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+    #toolbar button {
+      appearance: none;
+      border: 1px solid #3b7890;
+      border-radius: 4px;
+      padding: 5px 10px;
+      color: #c7e9e9;
+      background: linear-gradient(#12364a, #071a29);
+      box-shadow: inset 0 1px rgba(210,250,255,.16), 0 0 10px rgba(25,160,190,.12);
+      font: 700 10px/1 Consolas, monospace;
+      letter-spacing: .04em;
+      cursor: pointer;
+    }
+    #toolbar button:hover, #toolbar button:focus-visible {
+      color: #ffe58c;
+      border-color: #d5b85b;
+      outline: 2px solid rgba(229,194,78,.34);
+      outline-offset: 2px;
+    }
+    .caption {
+      width: 100%;
+      text-align: center;
+      color: #77a8c7;
+      font: 12px/1.2 Consolas, monospace;
+      letter-spacing: .04em;
+      opacity: .85;
+    }
+    .caption b { color: #e4bd54; font-weight: 700; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    html:fullscreen { background: #000; }
+    html:fullscreen body { padding: 0; }
+    html:fullscreen #wrap { width: min(1120px, calc(100vw - 16px), calc((100svh - 64px) * 1.4423077)); }
+    html:fullscreen #screen { border-radius: 0; }
+    @media (max-width: 700px) {
+      body { padding: max(8px, env(safe-area-inset-top))
+        max(8px, env(safe-area-inset-right))
+        max(8px, env(safe-area-inset-bottom))
+        max(8px, env(safe-area-inset-left)); }
+      #wrap { width: min(calc(100vw - 16px), calc((100svh - 90px) * 1.4423077)); gap: 6px; }
+      #toolbar button { padding: 4px 7px; font-size: 9px; }
+      .caption { font-size: 8px; letter-spacing: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main id="wrap">
+    <div id="screen" role="region" aria-label="Space Cadet pinball table">
+      <canvas id="game" width="600" height="416" tabindex="0" role="application" aria-label="Space Cadet pinball game" aria-describedby="instructions status" aria-keyshortcuts="Z ShiftLeft Slash ShiftRight Space A D ArrowLeft ArrowRight P H M R F F11 Enter Escape"></canvas>
+    </div>
+    <div id="toolbar" aria-label="Presentation controls">
+      <button id="fullscreen" type="button" aria-pressed="false">FULLSCREEN</button>
+      <button id="mute" type="button" aria-pressed="false">SOUND ON</button>
+    </div>
+    <div id="instructions" class="sr-only">Use Z or left Shift for the left flipper, slash or right Shift for the right flipper, Space to charge and launch, A/D or arrow keys to nudge, P to pause, H or Escape for help, M to mute, R to restart, and Enter to start.</div>
+    <div id="status" class="sr-only" role="status" aria-live="polite" aria-atomic="true">PRESS SPACE OR ENTER</div>
+    <div class="caption"><b>Z / LEFT SHIFT</b> left flipper&nbsp; · &nbsp;<b>/ / RIGHT SHIFT</b> right flipper&nbsp; · &nbsp;<b>SPACE</b> launch&nbsp; · &nbsp;<b>A/D or ARROWS</b> nudge&nbsp; · &nbsp;<b>P</b> pause&nbsp; · &nbsp;<b>H / ESC</b> help&nbsp; · &nbsp;<b>R</b> restart&nbsp; · &nbsp;<b>F / F11</b> fullscreen</div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
