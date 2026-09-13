@@ -27,7 +27,10 @@
   const statusNode = document.getElementById('status');
   const fullscreenButton = document.getElementById('fullscreen');
   const muteButton = document.getElementById('mute');
-  const ctx = canvas.getContext('2d', { alpha: false });
+  // Keep the logical 600x416 canvas cheap on integrated GPUs and virtual
+  // pinball cabinets. A 2x backing store made every glow/shadow pass four
+  // times as expensive without improving the retro-resolution artwork.
+  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
   if (!ctx) throw new Error('Canvas 2D context is unavailable');
   const scriptUrl = document.currentScript ? new URL(document.currentScript.src, window.location.href) : null;
   const testMode = new URLSearchParams(window.location.search).has('test')
@@ -216,6 +219,15 @@
     maxRings: 42,
     flashDecay: 2.8,
   });
+
+  const RENDER_TUNING = Object.freeze({
+    // The source table is intentionally low resolution. Rendering above 1x
+    // multiplies every Canvas shadow, gradient, and fill without adding game
+    // detail, and is especially costly on cabinet/iGPU setups.
+    maxBackingDpr: 1,
+    desynchronized: true,
+  });
+  let backingDpr = 1;
 
   // Stage 8.12: keep the supplied reference's dominant color relationships
   // in one place. These are procedural approximations, not copied pixels.
@@ -3160,10 +3172,11 @@
   function fitCanvas() {
     const rect = canvas.getBoundingClientRect();
     cssScale = Math.min(rect.width / DESIGN_W, rect.height / DESIGN_H) || 1;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(DESIGN_W * dpr);
-    canvas.height = Math.round(DESIGN_H * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    backingDpr = Math.min(window.devicePixelRatio || 1, RENDER_TUNING.maxBackingDpr);
+    canvas.width = Math.round(DESIGN_W * backingDpr);
+    canvas.height = Math.round(DESIGN_H * backingDpr);
+    ctx.setTransform(backingDpr, 0, 0, backingDpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
   }
 
   function roundedRect(x, y, w, h, r) {
@@ -5143,6 +5156,11 @@
   window.spaceCadetScoring = scoring;
   window.spaceCadetVisualFx = visualFx;
   window.spaceCadetVisualTuning = VISUAL_TUNING;
+  window.spaceCadetRender = {
+    tuning: RENDER_TUNING,
+    get backingDpr() { return backingDpr; },
+    get cssScale() { return cssScale; },
+  };
   window.spaceCadetRules = rules;
   window.spaceCadetMission = mission;
   window.spaceCadetUi = { input, statusNode };
