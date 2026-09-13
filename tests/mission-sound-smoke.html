@@ -42,6 +42,7 @@
       };
       function run() {
         fire('Enter');
+        window.spaceCadetAudioUnlock();
         test.startMission();
         check('mission start cue fires', audio.events.includes('missionStart'));
 

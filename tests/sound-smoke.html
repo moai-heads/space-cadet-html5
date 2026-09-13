@@ -28,6 +28,7 @@
       const sounds = ['flipper', 'rail', 'bumper', 'target', 'rollover', 'kicker', 'slingshot', 'ramp', 'rampHole', 'wormhole', 'launch', 'drain', 'nudge'];
       function run() {
         fire('Enter');
+        window.spaceCadetAudioUnlock();
         test.step(0.02);
         check('sound test unlocks audio', audio.unlocked && audio.buses.sfx && audio.voiceCount >= 0);
 

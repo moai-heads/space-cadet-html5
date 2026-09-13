@@ -217,12 +217,17 @@ also drift apart.
   the flipper input edge, increased the rise/fall response, interpolated ball
   presentation between fixed ticks, and bounded per-frame physics catch-up.
   Commit `53a54ab`.
-- [ ] **10.4 Collision stability (≤4 min):** reduce accidental route capture,
+- [x] **10.4 Collision stability (≤4 min):** reduce accidental route capture,
   add bounded catch-up, and prevent transport entry/exit from visibly snapping
-  through geometry.
-- [ ] **10.5 Deck collision clarity (≤4 min):** remove obsolete projected art
+  through geometry. Added two bounded ball-integration slices per fixed tick,
+  route/shooter capture easing, post-transport grace, a mapped shooter exit,
+  and a full-loop smoke harness; `ramps-smoke.html`, `deck-regression-smoke.html`,
+  and `real-loop-smoke.html` pass.
+- [x] **10.5 Deck collision clarity (≤4 min):** remove obsolete projected art
   from the portrait renderer, align major visible bumpers/bounds with their
-  active colliders, and show the latest contact name briefly.
-- [ ] **10.6 Validation and redeploy (≤4 min):** extend smoke coverage, run the
-  complete suite, publish the corrected `gh-pages` build, and verify it over
-  HTTPS.
+  active colliders, and show the latest contact name briefly. Added the logical
+  portrait render cache, visible-deck bumper/wall mapping, production filtering
+  for hidden legacy colliders, route rails, readable `PULL`/`LAUNCH` feedback,
+  and `tests/collision-clarity-smoke.html`; the full suite passes 28/28.
+- [ ] **10.6 Validation and redeploy (≤4 min):** publish the corrected `gh-pages`
+  build, verify the live HTTPS page, and record the public smoke result.

@@ -27,6 +27,7 @@
         const test = window.spaceCadetTest;
         const canvas = document.getElementById('game');
         window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter', bubbles: true, cancelable: true }));
+        window.spaceCadetAudioUnlock();
         window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Enter', key: 'Enter', bubbles: true, cancelable: true }));
         const t0 = performance.now();
         window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyZ', key: 'KeyZ', bubbles: true, cancelable: true }));

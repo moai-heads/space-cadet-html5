@@ -37,6 +37,7 @@
         check('live status region is connected', ui.statusNode === status && status.getAttribute('aria-live') === 'polite');
 
         fire('Enter');
+        window.spaceCadetAudioUnlock();
         test.step(0.02);
         check('Enter starts the game', game.state === 'playing');
         check('status region reports the latest action', status.textContent === input.lastAction);

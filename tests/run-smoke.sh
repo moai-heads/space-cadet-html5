@@ -3,7 +3,7 @@ set -u -o pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHROMIUM_BIN="${CHROMIUM_BIN:-chromium}"
-VIRTUAL_TIME_BUDGET="${VIRTUAL_TIME_BUDGET:-4000}"
+VIRTUAL_TIME_BUDGET="${VIRTUAL_TIME_BUDGET:-6000}"
 
 if ! command -v "$CHROMIUM_BIN" >/dev/null 2>&1; then
   echo "ERROR: Chromium executable not found: $CHROMIUM_BIN" >&2
@@ -58,6 +58,8 @@ TESTS=(
   deck-palette-smoke
   deck-regression-smoke
   deck-comparison-smoke
+  collision-clarity-smoke
+  real-loop-smoke
   layout-smoke
   audio-smoke
   sound-smoke

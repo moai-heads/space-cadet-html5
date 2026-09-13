@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space Cadet collision clarity smoke test</title>
+  <style>
+    body { margin: 0; background: #02070e; color: #c8e9ff; font: 14px/1.5 monospace; }
+    #game { display: block; width: 600px; height: 416px; }
+    #result { white-space: pre-wrap; padding: 12px; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="600" height="416"></canvas>
+  <pre id="result">RUNNING…</pre>
+  <script src="../app.js?test=1"></script>
+  <script>
+    (() => {
+      'use strict';
+      const results = [];
+      const check = (name, pass, detail = '') => results.push({ name, pass: Boolean(pass), detail });
+      const ball = window.spaceCadetBall;
+      const game = window.spaceCadetGame;
+      const test = window.spaceCadetTest;
+      const collision = window.spaceCadetCollisionState;
+      const placeBall = (x, y, vx = 0, vy = 0) => {
+        ball.active = true;
+        ball.transport = null;
+        ball.shooterExited = false;
+        ball.x = x;
+        ball.y = y;
+        ball.previousX = x;
+        ball.previousY = y;
+        ball.vx = vx;
+        ball.vy = vy;
+        window.spaceCadetPlunger.armed = false;
+      };
+
+      function run() {
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter' }));
+        test.step(0.02);
+        check('clarity test starts a playable game', game.state === 'playing');
+
+        const bumper = window.spaceCadetBumpers[0];
+        placeBall(bumper.x, bumper.y);
+        bumper.hitCooldown = 0;
+        test.step(0.01);
+        check('visible bumper is the active collision center',
+          collision.bumperHits > 0 && collision.lastContact && collision.lastContact.label === 'BUMPER',
+          collision.lastContact ? `${collision.lastContact.label} @ ${collision.lastContact.x.toFixed(1)},${collision.lastContact.y.toFixed(1)}` : 'no contact');
+        test.render();
+        check('collision feedback renders after a hit', test.renderFrames > 0);
+        check('portrait renderer uses bounded collision slices',
+          window.spaceCadetRender.ballIntegrationSubsteps === 2
+          && window.spaceCadetRender.portraitLegacyFeatureCollisions === true);
+
+        const bounds = window.spaceCadetPortraitBounds;
+        check('active wall bounds stay on the visible portrait deck',
+          window.spaceCadetWalls.slice(0, 3).every(wall => [wall.a, wall.b].flat().every(point =>
+            Number.isFinite(point.x) && Number.isFinite(point.y))
+            && wall.a.x >= bounds.left - 1 && wall.b.x <= bounds.right + 1),
+          `${bounds.left.toFixed(1)}..${bounds.right.toFixed(1)}`);
+
+        const route = window.spaceCadetDeckDesign.ballRoutes.find(item => item.id === 'upper-deck-access');
+        const start = route.path[0];
+        placeBall(start.x, start.y, route.ballSpeed * route.path[1].x - route.path[0].x, route.ballSpeed * route.path[1].y - route.path[0].y);
+        test.setDeckLevel(window.spaceCadetDeckDesign.levels.lower);
+        const beforeX = ball.x;
+        const beforeY = ball.y;
+        test.startDeckRoute(route.id, { announce: false });
+        test.step(1 / 120);
+        check('route capture eases instead of teleporting to its centerline',
+          Math.hypot(ball.x - beforeX, ball.y - beforeY) < 8,
+          `${Math.hypot(ball.x - beforeX, ball.y - beforeY).toFixed(2)}px first tick`);
+        test.step(route.length / route.ballSpeed + 0.2);
+        check('raised route completes without a stuck transport', !ball.transport && ball.deckLevel === route.to);
+
+        const passed = results.every(result => result.pass);
+        const lines = results.map(result => `${result.pass ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+        document.body.dataset.smoke = passed ? 'pass' : 'fail';
+        document.getElementById('result').textContent = `${passed ? 'PASS' : 'FAIL'}\n\n${lines.join('\n')}`;
+      }
+
+      try { run(); } catch (error) {
+        document.body.dataset.smoke = 'error';
+        document.getElementById('result').textContent = `ERROR\n\n${error.stack || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>

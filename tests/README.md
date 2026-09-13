@@ -46,7 +46,11 @@ shooter-lane exit routing.
 
 `deck-comparison-smoke.html` covers the stable screenshot frame, 342×482 portrait aspect, centered viewport, and major reference landmark bands.
 
-Run the complete suite from the project root with `./tests/run-smoke.sh`; it starts a temporary local server, runs all 23 Chromium smoke pages plus 3 gameplay viewports, and exits nonzero on failure.
+`collision-clarity-smoke.html` checks visible-deck bumper alignment, portrait bounds, eased route capture, and route completion without a stuck transport.
+
+`real-loop-smoke.html` checks the live scheduler, logical backing resolution, average frame budget, and flipper response.
+
+Run the complete suite from the project root with `./tests/run-smoke.sh`; it starts a temporary local server, runs all 25 Chromium smoke pages plus 3 gameplay viewports, and exits nonzero on failure.
 
 `gameplay-smoke.html` covers launch, flippers, bumper scoring, mission completion, drain/respawn, game over, and reference-aspect containment inside the current viewport. The regression runner executes it at 1280×900, 900×700, and 390×844.
 

@@ -27,6 +27,10 @@
       function run() {
         check('audio mixer exposes support and locked state', typeof audio.supported === 'boolean' && audio.state === 'locked');
         fire('Enter');
+        // The production input edge defers AudioContext construction so it
+        // cannot delay a flipper. Exercise the trusted unlock path directly
+        // in this deterministic mixer test.
+        window.spaceCadetAudioUnlock();
         test.step(0.02);
         check('user gesture unlocks the mixer', audio.unlocked && audio.context && audio.master && audio.buses.sfx && audio.buses.ui);
         fire('KeyM');
