@@ -27,11 +27,16 @@
   const statusNode = document.getElementById('status');
   const fullscreenButton = document.getElementById('fullscreen');
   const muteButton = document.getElementById('mute');
-  const ctx = canvas.getContext('2d', { alpha: false });
+  // Keep the logical 600x416 canvas cheap on integrated GPUs and virtual
+  // pinball cabinets. A 2x backing store made every glow/shadow pass four
+  // times as expensive without improving the retro-resolution artwork.
+  let ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
   if (!ctx) throw new Error('Canvas 2D context is unavailable');
   const scriptUrl = document.currentScript ? new URL(document.currentScript.src, window.location.href) : null;
-  const testMode = new URLSearchParams(window.location.search).has('test')
+  const queryParams = new URLSearchParams(window.location.search);
+  const testMode = queryParams.has('test')
     || Boolean(scriptUrl && scriptUrl.searchParams.has('test'));
+  const loopTestMode = queryParams.has('loop-test');
 
   // Stage 3.1: use the original 600×416 logical screen as the source
   // coordinate system. The original table projection occupies the left
@@ -162,7 +167,10 @@
   // fast ball, while the handoff happens mid-route so the raised/bridge level
   // changes before the ball reaches the far lip.
   const DECK_ROUTE_TUNING = Object.freeze({
-    triggerRadius: 12,
+    // Capture only inside the visible lane, then blend onto its centerline so
+    // a low-FPS frame never appears to teleport the ball through a rail.
+    triggerRadius: 6,
+    captureDuration: 0.055,
     transitionProgress: 0.52,
     transitionGrace: 0.42,
   });
@@ -196,6 +204,8 @@
     flipperActiveRestitution: 1.01,
     flipperActiveKick: 108,
     flipperRestKick: 16,
+    flipperRiseSpeed: 96,
+    flipperFallSpeed: 48,
     collisionSlop: 0.08,
     tangentialDamping: 0.024,
     drainY: 405,
@@ -216,6 +226,28 @@
     maxRings: 42,
     flashDecay: 2.8,
   });
+
+  const RENDER_TUNING = Object.freeze({
+    // The source table is intentionally low resolution. Rendering above 1x
+    // multiplies every Canvas shadow, gradient, and fill without adding game
+    // detail, and is especially costly on cabinet/iGPU setups.
+    maxBackingDpr: 1,
+    desynchronized: true,
+  });
+  let backingDpr = 1;
+
+  const PORTRAIT_DECK_RENDER = true;
+  const PORTRAIT_LEGACY_FEATURE_COLLISIONS = !PORTRAIT_DECK_RENDER || testMode;
+  // The raised-deck illustration is mostly static. Keep it in a logical-size
+  // cache so a cabinet does not rebuild dozens of gradients, lamps, and glow
+  // paths on every animation frame. Dynamic ball, flipper, route, and contact
+  // feedback remain on the main surface.
+  const portraitStaticLayer = document.createElement('canvas');
+  portraitStaticLayer.width = DESIGN_W;
+  portraitStaticLayer.height = DESIGN_H;
+  const portraitStaticCtx = portraitStaticLayer.getContext('2d', { alpha: true });
+  let portraitStaticReady = false;
+  let portraitStaticBuilds = 0;
 
   // Stage 8.12: keep the supplied reference's dominant color relationships
   // in one place. These are procedural approximations, not copied pixels.
@@ -520,6 +552,33 @@
     const point = projectWorldPair(source.world);
     mappedTable.bumpers.push({ ...source, x: point.x, y: point.y, points: 100, restitution: PHYSICS_TUNING.bumperRestitution, kick: PHYSICS_TUNING.bumperKick, flash: 0, hitCooldown: 0, hits: 0 });
   }
+
+  // The redesign is portrait-mapped, so the active bumper centers must use
+  // the same coordinates as the six visible deck domes and central reactor.
+  // Leaving the old projected centers active made the ball hit artwork that
+  // was no longer on screen.
+  const DECK_BUMPER_LAYOUT = Object.freeze([
+    { ref: [78, 84], radius: 14, deck: DECK_LEVELS.raised },
+    { ref: [173, 80], radius: 15, deck: DECK_LEVELS.raised },
+    { ref: [172, 127], radius: 14, deck: DECK_LEVELS.raised },
+    { ref: [28, 224], radius: 10, deck: DECK_LEVELS.raised },
+    { ref: [73, 228], radius: 11, deck: DECK_LEVELS.raised },
+    { ref: [112, 204], radius: 11, deck: DECK_LEVELS.raised },
+    { ref: [171, 285], radius: 18, deck: DECK_LEVELS.lower },
+  ]);
+  mappedTable.bumpers.forEach((bumper, index) => {
+    const layout = DECK_BUMPER_LAYOUT[index];
+    if (!layout) return;
+    const point = mapDeckPoint(layout.ref);
+    Object.assign(bumper, {
+      x: point.x,
+      y: point.y,
+      radius: layout.radius * deckViewport.scale,
+      deck: layout.deck,
+      visualDeck: layout.deck,
+      visualRef: layout.ref,
+    });
+  });
   function polygonMetrics(points) {
     const xs = points.map(point => point.x);
     const ys = points.map(point => point.y);
@@ -627,6 +686,14 @@
       return { x: point.x - dy / length * offset, y: point.y + dx / length * offset };
     });
   }
+
+  const mappedDeckRouteRails = Object.freeze(mappedDeckBallRoutes.map(route => Object.freeze({
+    route,
+    rails: Object.freeze([
+      Object.freeze(offsetPolyline(route.path, 4.8)),
+      Object.freeze(offsetPolyline(route.path, -4.8)),
+    ]),
+  })));
 
   function mapWorldPolygon(source, options = {}) {
     const points = source.world.map(projectWorldPair);
@@ -744,9 +811,9 @@
   });
 
   applyDeckFeatureMetadata(mappedTable.bumpers, bumper => {
-    const deck = bumper.id === 'bump4'
+    const deck = bumper.visualDeck ?? (bumper.id === 'bump4'
       ? DECK_LEVELS.bridge
-      : (['bump5', 'bump6', 'bump7'].includes(bumper.id) ? DECK_LEVELS.raised : DECK_LEVELS.lower);
+      : (['bump5', 'bump6', 'bump7'].includes(bumper.id) ? DECK_LEVELS.raised : DECK_LEVELS.lower));
     return deckFeatureMeta(deck, deck === DECK_LEVELS.lower ? 'lower' : (deck === DECK_LEVELS.raised ? 'raised' : 'bridge-top'), 30 + deck * 20);
   });
   applyDeckFeatureMetadata(mappedTable.targets, target => {
@@ -773,10 +840,16 @@
 
   // Stage 2.2: simulation time is independent of display refresh rate.
   const FIXED_DT = 1 / 120;
+  const MAX_STEPS_PER_FRAME = 8;
+  // Two small integration slices keep a fast ball from crossing a thin rail
+  // between collision checks, without turning a display hitch into an
+  // unbounded catch-up loop.
+  const BALL_INTEGRATION_SUBSTEPS = 2;
   let accumulator = 0;
   let lastFrameTime = null;
   let simTime = 0;
   let simTicks = 0;
+  let droppedSimulationTime = 0;
   let renderFrames = 0;
 
   // Stage 2.3: one normalized input layer for keyboard, mouse, and touch.
@@ -828,6 +901,21 @@
     audio.muted = input.muted;
   }
 
+  let audioUnlockTimer = 0;
+
+  function queueAudioUnlock() {
+    if (audio.unlocked || audioUnlockTimer) return;
+    // AudioContext construction can take a surprisingly long time on cabinet
+    // browsers. Never put it on the same task as a flipper edge: the bat must
+    // become visible first, even if the browser later rejects the deferred
+    // unlock because the gesture has ended. The toolbar still calls
+    // unlockAudio() directly from its trusted click handler.
+    audioUnlockTimer = window.setTimeout(() => {
+      audioUnlockTimer = 0;
+      unlockAudio();
+    }, 0);
+  }
+
   function unlockAudio() {
     if (!audio.supported) {
       audio.state = 'unsupported';
@@ -869,6 +957,9 @@
 
   function setMuted(muted) {
     input.muted = Boolean(muted);
+    // Keep the observable mute state correct even before an AudioContext has
+    // been created. This also makes M safe to press before the first launch.
+    audio.muted = input.muted;
     updateAudioGain();
     updateMuteUi();
     markAction(input.muted ? 'MUTE ON' : 'MUTE OFF');
@@ -1255,9 +1346,13 @@
     if (rules.rank >= RANK_NAMES.length - 1) return false;
     rules.rankProgress += Math.max(0, Math.floor(amount));
     let promoted = false;
-    while (rules.rank < RANK_NAMES.length - 1 && rules.rankProgress >= rules.rankProgressMax) {
+    let promotionSteps = 0;
+    while (rules.rank < RANK_NAMES.length - 1
+      && rules.rankProgress >= rules.rankProgressMax
+      && promotionSteps < RANK_NAMES.length) {
       rules.rankProgress -= rules.rankProgressMax;
       rules.rank += 1;
+      promotionSteps += 1;
       promoted = true;
     }
     if (rules.rank >= RANK_NAMES.length - 1) rules.rankProgress = 0;
@@ -1551,17 +1646,20 @@
 
   function onKeyDown(event) {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
-    unlockAudio();
     const action = keyAction(event.code);
     if (action || ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyP', 'KeyH', 'KeyM', 'KeyR', 'KeyF', 'F11', 'Enter', 'Escape'].includes(event.code)) {
       event.preventDefault();
     }
 
     if (action) {
+      // Prioritize the control edge before lazy AudioContext construction. On
+      // the first cabinet press, audio setup must not sit in front of the bat.
       setButton(action, true);
+      queueAudioUnlock();
       return;
     }
     if (event.repeat) return;
+    queueAudioUnlock();
 
     if (event.code === 'KeyA' || event.code === 'ArrowLeft') {
       input.nudgeX = -1;
@@ -1623,7 +1721,6 @@
 
   function onPointerDown(event) {
     event.preventDefault();
-    unlockAudio();
     if (canvas.focus) canvas.focus({ preventScroll: true });
     if (input.pointerAction) releaseAllControls('TOUCH RESET');
     const pos = pointerPosition(event);
@@ -1637,6 +1734,7 @@
       if (canvas.setPointerCapture && event.pointerId != null) canvas.setPointerCapture(event.pointerId);
     } catch (_) { /* synthetic/test pointer events may not be capturable */ }
     setButton(action, true, 'TOUCH');
+    queueAudioUnlock();
   }
 
   function onPointerMove(event) {
@@ -1760,7 +1858,7 @@
     charge: 0,
     chargeRate: 1.45,
     launchMin: 300,
-    launchMax: 520,
+    launchMax: 620,
     laneX: mappedTable.plunger.x,
     laneBottom: mappedTable.plunger.y,
     laneTop: mappedTable.shooterRail[0].y,
@@ -2010,51 +2108,70 @@
     ball.previousX = ball.x;
     ball.previousY = ball.y;
     ball.age += dt;
+    const substeps = BALL_INTEGRATION_SUBSTEPS;
+    const subDt = dt / substeps;
 
-    // Exponential drag keeps behavior stable if FIXED_DT changes later.
-    const drag = Math.exp(-ballPhysics.airDrag * dt);
-    ball.vx *= drag;
-    ball.vy *= drag;
-    ball.vy += ballPhysics.gravity * dt;
+    for (let substep = 0; substep < substeps; substep += 1) {
+      // Exponential drag keeps behavior stable if FIXED_DT changes later.
+      const drag = Math.exp(-ballPhysics.airDrag * subDt);
+      ball.vx *= drag;
+      ball.vy *= drag;
+      ball.vy += ballPhysics.gravity * subDt;
 
-    // Nudge is deliberately gentle here; table-specific nudge rules come later.
-    if (input.nudgeX !== 0) ball.vx += input.nudgeX * 10;
+      // Nudge is deliberately gentle here; distribute the fixed-tick impulse
+      // across the microsteps so its total strength stays unchanged.
+      if (input.nudgeX !== 0) ball.vx += input.nudgeX * 10 / substeps;
 
-    ball.x += ball.vx * dt;
-    ball.y += ball.vy * dt;
-    collideBallWithWalls();
-    collideBallWithBumpers();
-    collideBallWithTableFeatures();
-    if (ball.transport) return;
-    collideBallWithFlippers();
-    limitBallSpeed();
+      ball.x += ball.vx * subDt;
+      ball.y += ball.vy * subDt;
+      collideBallWithWalls();
+      collideBallWithBumpers();
+      collideBallWithTableFeatures();
+      if (ball.transport) return;
+      collideBallWithFlippers();
+      limitBallSpeed();
+
+      // Check the drain after every microstep so a low-FPS frame cannot carry
+      // the ball through the open apron before the next collision pass.
+      if (ballHasEnteredDrain()) {
+        drainBall();
+        return;
+      }
+      const margin = 42;
+      if (ball.y > ballPhysics.height + margin) {
+        drainBall('SAFETY DRAIN');
+        return;
+      }
+      if (ball.x < -margin || ball.x > ballPhysics.width + margin) {
+        resetBallMotion();
+        return;
+      }
+    }
 
     ball.trail.push({ x: ball.x, y: ball.y, life: 1 });
     if (ball.trail.length > 10) ball.trail.shift();
     for (const point of ball.trail) point.life *= 0.90;
-
-    // Stage 2.9: crossing the open apron consumes a ball. Keep a separate
-    // safety reset only for impossible horizontal escapes during development.
-    if (ballHasEnteredDrain()) {
-      drainBall();
-      return;
-    }
-    const margin = 42;
-    if (ball.y > ballPhysics.height + margin) {
-      drainBall('SAFETY DRAIN');
-    } else if (ball.x < -margin || ball.x > ballPhysics.width + margin) {
-      resetBallMotion();
-    }
   }
 
-  // Stage 3.1: project the source table perimeter into the same 600×416
-  // screen space as the renderer. The bottom remains open so the drain can
-  // own ball loss; a mapped shooter rail retains the source's right-side lane.
+  // Stage 3.1/10.5: the collision perimeter follows the visible portrait
+  // deck rather than the obsolete projected source rectangle. The bottom is
+  // intentionally open for the drain; the shooter lane has its own visible
+  // left rail and the deck's right edge acts as the other side.
+  const portraitBounds = Object.freeze({
+    left: deckViewport.x + 4,
+    right: deckViewport.x + deckViewport.w - 4,
+    top: 6,
+    bottom: DESIGN_H + 18,
+  });
+  const portraitShooterRail = [
+    { x: mappedTable.plunger.x - 15, y: mappedTable.shooterRail[0].y },
+    { x: mappedTable.plunger.x - 15, y: mappedTable.plunger.y + 8 },
+  ];
   const walls = [
-    { id: 'top-rail', a: tableCorners.topLeft, b: tableCorners.topRight, restitution: PHYSICS_TUNING.wallRestitution },
-    { id: 'left-rail', a: tableCorners.topLeft, b: tableCorners.bottomLeft, restitution: PHYSICS_TUNING.wallRestitution },
-    { id: 'right-rail', a: tableCorners.topRight, b: tableCorners.bottomRight, restitution: PHYSICS_TUNING.wallRestitution },
-    { id: 'shooter-rail', a: shooterRail[0], b: shooterRail[1], restitution: PHYSICS_TUNING.shooterRestitution },
+    { id: 'top-rail', a: { x: portraitBounds.left, y: portraitBounds.top }, b: { x: portraitBounds.right, y: portraitBounds.top }, restitution: PHYSICS_TUNING.wallRestitution },
+    { id: 'left-rail', a: { x: portraitBounds.left, y: portraitBounds.top }, b: { x: portraitBounds.left, y: portraitBounds.bottom }, restitution: PHYSICS_TUNING.wallRestitution },
+    { id: 'right-rail', a: { x: portraitBounds.right, y: portraitBounds.top }, b: { x: portraitBounds.right, y: portraitBounds.bottom }, restitution: PHYSICS_TUNING.wallRestitution },
+    { id: 'shooter-rail', a: portraitShooterRail[0], b: portraitShooterRail[1], restitution: PHYSICS_TUNING.shooterRestitution },
   ];
 
   // The seven bumper anchors come from the original a_bump1–a_bump7
@@ -2099,7 +2216,9 @@
     rampHoleHits: 0,
     wormholeHits: 0,
     shooterExits: 0,
+    deckRailHits: 0,
     impacts: [],
+    lastContact: null,
   };
 
   function closestPointOnSegment(px, py, ax, ay, bx, by) {
@@ -2125,6 +2244,7 @@
     scoring.comboTimer = 1.5;
     scoring.popups.push({ x, y, points: value, life: 1 });
     if (scoring.popups.length > 12) scoring.popups.shift();
+    collisionState.lastContact = { label: String(label), x, y, life: 0.46 };
     spawnImpactFx(x, y, label);
     markAction(`${label} +${value}`);
   }
@@ -2135,6 +2255,14 @@
     if (collisionState.impacts.length > 16) collisionState.impacts.shift();
     awardScore(10, 'RAIL', x, y);
     playSound('rail', .55);
+  }
+
+  function recordDeckRouteImpact(x, y, nx, ny, route) {
+    collisionState.deckRailHits += 1;
+    collisionState.impacts.push({ x, y, nx, ny, life: 1, kind: 'deck-rail', routeId: route.id });
+    if (collisionState.impacts.length > 16) collisionState.impacts.shift();
+    collisionState.lastContact = { label: `${route.label} RAIL`, x, y, life: 0.38 };
+    playSound('rail', .32);
   }
 
   function collideBallWithSegment(segment, impactRecorder = recordWallImpact) {
@@ -2441,6 +2569,26 @@
     return collided;
   }
 
+  function collideBallWithDeckRouteRails() {
+    let collided = false;
+    for (const entry of mappedDeckRouteRails) {
+      const route = entry.route;
+      if (ball.deckLevel !== route.from) continue;
+      for (const rail of entry.rails) {
+        for (let index = 1; index < rail.length; index += 1) {
+          const segment = {
+            a: rail[index - 1],
+            b: rail[index],
+            restitution: PHYSICS_TUNING.guideRestitution,
+          };
+          collided = collideBallWithSegment(segment, (x, y, nx, ny) =>
+            recordDeckRouteImpact(x, y, nx, ny, route)) || collided;
+        }
+      }
+    }
+    return collided;
+  }
+
   function resolveDeckRoute(routeOrId) {
     if (typeof routeOrId === 'string') {
       return mappedDeckBallRoutes.find(route => route.id === routeOrId) || null;
@@ -2473,6 +2621,12 @@
       toLevel,
       transitionProgress,
       transitioned: fromLevel === toLevel,
+      captureElapsed: 0,
+      captureDuration: DECK_ROUTE_TUNING.captureDuration,
+      captureStartX: ball.x,
+      captureStartY: ball.y,
+      captureTargetX: sample.x,
+      captureTargetY: sample.y,
     };
     ball.deckTransition = {
       routeId: route.id,
@@ -2481,8 +2635,8 @@
       progress,
     };
     ball.deckHeight = deckHeightForLevel(fromLevel);
-    ball.x = sample.x;
-    ball.y = sample.y;
+    // Keep the current position for a short, bounded capture blend. The
+    // route becomes a visible lane transfer instead of an instantaneous snap.
     ball.previousX = ball.x;
     ball.previousY = ball.y;
     ball.vx = sample.tangentX * route.ballSpeed;
@@ -2502,7 +2656,7 @@
       if (nearest.distance > route.triggerRadius + ball.radius) continue;
       if (nearest.progress > 0.22) continue;
       const along = ball.vx * nearest.tangentX + ball.vy * nearest.tangentY;
-      if (along < 16 && Math.hypot(ball.vx, ball.vy) > 20) continue;
+      if (along < 12) continue;
       return startDeckRoute(route, { progress: nearest.progress });
     }
     return false;
@@ -2516,8 +2670,26 @@
       deckRouting.activeRoute = '';
       return;
     }
-    transport.progress += transport.speed * dt / route.length;
-    const sample = polylineSample(route.path, transport.progress);
+    let sample;
+    if (transport.captureElapsed < transport.captureDuration) {
+      transport.captureElapsed = Math.min(transport.captureDuration, transport.captureElapsed + dt);
+      transport.progress += transport.speed * dt / route.length;
+      const captureT = transport.captureDuration > 0
+        ? transport.captureElapsed / transport.captureDuration : 1;
+      const eased = captureT * captureT * (3 - 2 * captureT);
+      const captureSample = polylineSample(route.path, transport.progress);
+      ball.x = transport.captureStartX
+        + (captureSample.x - transport.captureStartX) * eased;
+      ball.y = transport.captureStartY
+        + (captureSample.y - transport.captureStartY) * eased;
+      ball.vx = captureSample.tangentX * transport.speed;
+      ball.vy = captureSample.tangentY * transport.speed;
+      if (transport.captureElapsed < transport.captureDuration) return;
+      sample = captureSample;
+    } else {
+      transport.progress += transport.speed * dt / route.length;
+      sample = polylineSample(route.path, transport.progress);
+    }
     ball.x = sample.x;
     ball.y = sample.y;
     ball.vx = sample.tangentX * transport.speed;
@@ -2573,6 +2745,12 @@
       toDeckLevel,
       transitionProgress: 0.48,
       deckTransitioned: fromDeckLevel === toDeckLevel,
+      captureElapsed: 0,
+      captureDuration: DECK_ROUTE_TUNING.captureDuration,
+      captureStartX: ball.x,
+      captureStartY: ball.y,
+      captureTargetX: sample.x,
+      captureTargetY: sample.y,
     };
     ball.deckTransition = {
       routeId: ramp.id,
@@ -2581,13 +2759,14 @@
       progress: Math.max(0, Math.min(0.94, progress)),
     };
     ball.deckHeight = deckHeightForLevel(fromDeckLevel);
-    ball.x = sample.x;
-    ball.y = sample.y;
+    // Capture from the approach point instead of overwriting the ball's
+    // position immediately; this keeps the visible ramp entry and collision
+    // response coherent on slow displays.
     ball.previousX = ball.x;
     ball.previousY = ball.y;
     ball.vx = 0;
     ball.vy = 0;
-    if (!fromHole) awardScore(ramp.points, ramp.kind === 'launch' ? 'LAUNCH RAMP' : 'HYPERSPACE', ball.x, ball.y);
+    if (!fromHole) awardScore(ramp.points, ramp.kind === 'launch' ? 'LAUNCH RAMP' : 'HYPERSPACE', sample.x, sample.y);
     game.lastMessage = ramp.kind === 'launch' ? 'LAUNCH RAMP — ROCKET RUN' : 'HYPERSPACE RAMP';
     markAction(ramp.label);
     return true;
@@ -2663,7 +2842,9 @@
   function startShooterExit() {
     if (ball.transport || ball.shooterExited || shooterExit.cooldown > 0 || !shooterExit) return false;
     const start = shooterExit.path[0];
-    if (ball.y > start.y + 9 || ball.x < plunger.laneX - ball.radius * 2 || ball.vy >= 0) return false;
+    if (ball.y > start.y + 9
+      || ball.x < portraitShooterRail[0].x - ball.radius
+      || ball.vy >= 0) return false;
     shooterExit.active = true;
     shooterExit.flash = 1;
     shooterExit.cooldown = 0.60;
@@ -2674,9 +2855,13 @@
       path: shooterExit.path,
       progress: 0,
       speed: 278,
+      captureElapsed: 0,
+      captureDuration: DECK_ROUTE_TUNING.captureDuration,
+      captureStartX: ball.x,
+      captureStartY: ball.y,
     };
-    ball.x = start.x;
-    ball.y = start.y;
+    // Blend from the actual lane position to the route centerline instead of
+    // snapping the ball back to the lane origin on a slow frame.
     ball.previousX = ball.x;
     ball.previousY = ball.y;
     ball.vx = 0;
@@ -2697,8 +2882,26 @@
       updateDeckRouteTransport(transport, dt);
     } else if (transport.type === 'ramp') {
       const ramp = transport.ramp;
-      transport.progress += transport.speed * dt / (ramp.length || 1);
-      const sample = polylineSample(ramp.path, transport.progress);
+      let sample;
+      if (transport.captureElapsed < transport.captureDuration) {
+        transport.captureElapsed = Math.min(transport.captureDuration, transport.captureElapsed + dt);
+        transport.progress += transport.speed * dt / (ramp.length || 1);
+        const captureT = transport.captureDuration > 0
+          ? transport.captureElapsed / transport.captureDuration : 1;
+        const eased = captureT * captureT * (3 - 2 * captureT);
+        const captureSample = polylineSample(ramp.path, transport.progress);
+        ball.x = transport.captureStartX
+          + (captureSample.x - transport.captureStartX) * eased;
+        ball.y = transport.captureStartY
+          + (captureSample.y - transport.captureStartY) * eased;
+        ball.vx = captureSample.tangentX * transport.speed;
+        ball.vy = captureSample.tangentY * transport.speed;
+        if (transport.captureElapsed < transport.captureDuration) return;
+        sample = captureSample;
+      } else {
+        transport.progress += transport.speed * dt / (ramp.length || 1);
+        sample = polylineSample(ramp.path, transport.progress);
+      }
       ball.x = sample.x;
       ball.y = sample.y;
       ball.vx = sample.tangentX * transport.speed;
@@ -2782,8 +2985,26 @@
         markAction(`${wormhole.label} EJECT`);
       }
     } else if (transport.type === 'shooter') {
-      transport.progress += transport.speed * dt / (shooterExit.length || 1);
-      const sample = polylineSample(transport.path, transport.progress);
+      let sample;
+      if (transport.captureElapsed < transport.captureDuration) {
+        transport.captureElapsed = Math.min(transport.captureDuration, transport.captureElapsed + dt);
+        transport.progress += transport.speed * dt / (shooterExit.length || 1);
+        const captureT = transport.captureDuration > 0
+          ? transport.captureElapsed / transport.captureDuration : 1;
+        const eased = captureT * captureT * (3 - 2 * captureT);
+        const captureSample = polylineSample(transport.path, transport.progress);
+        ball.x = transport.captureStartX
+          + (captureSample.x - transport.captureStartX) * eased;
+        ball.y = transport.captureStartY
+          + (captureSample.y - transport.captureStartY) * eased;
+        ball.vx = captureSample.tangentX * transport.speed;
+        ball.vy = captureSample.tangentY * transport.speed;
+        if (transport.captureElapsed < transport.captureDuration) return;
+        sample = captureSample;
+      } else {
+        transport.progress += transport.speed * dt / (shooterExit.length || 1);
+        sample = polylineSample(transport.path, transport.progress);
+      }
       ball.x = sample.x;
       ball.y = sample.y;
       ball.vx = sample.tangentX * transport.speed;
@@ -2793,7 +3014,7 @@
         shooterExit.flash = 1;
         const exit = polylineSample(transport.path, 1);
         ball.transport = null;
-        setBallDeckLevel(DECK_LEVELS.lower, 'shooter-exit', false);
+        setBallDeckLevel(DECK_LEVELS.raised, 'shooter-exit', false);
         ball.deckTransition = null;
         ball.x = exit.x;
         ball.y = exit.y;
@@ -2846,9 +3067,37 @@
   }
 
   function collideBallWithTableFeatures() {
-    let collided = false;
-    collided = tryStartDeckRoute() || collided;
+    // A completed route ejects beside its exit lip. Give that ejection a
+    // bounded grace window before testing another route/sink; otherwise the
+    // first post-route tick can immediately recapture the ball in a legacy
+    // sink or overlapping guide.
+
+    // The portrait redesign deliberately owns the visible table. Do not let
+    // obsolete projected targets, holes, ramps, or kickers collide in empty
+    // pixels behind it; those hidden objects were the source of phantom hits
+    // and apparent stuck/teleporting balls. The test harness keeps the legacy
+    // branch so the original feature regression pages remain deterministic.
+    if (!PORTRAIT_LEGACY_FEATURE_COLLISIONS) {
+      if (ball.routeGrace > 0) return false;
+      let collided = tryStartDeckRoute();
+      if (ball.transport) return true;
+      // The mapped shooter exit is part of the visible portrait lane and is
+      // the only legacy transport retained in the production collision set.
+      collided = collideBallWithShooterExit() || collided;
+      if (ball.transport) return true;
+      collided = collideBallWithDeckRouteRails() || collided;
+      return collided;
+    }
+
+    let collided = tryStartDeckRoute();
     if (ball.transport) return true;
+    if (ball.routeGrace > 0) {
+      // A test or a real shooter return may legitimately enter the lane during
+      // the grace window; keep the shooter exit available while suppressing
+      // the other overlapping legacy sinks.
+      collided = collideBallWithShooterExit() || collided;
+      return collided;
+    }
     collided = collideBallWithRamps() || collided;
     if (ball.transport) return true;
     collided = collideBallWithHoles() || collided;
@@ -2879,6 +3128,7 @@
   }
 
   function collideBallWithBumper(bumper) {
+    if (!PORTRAIT_LEGACY_FEATURE_COLLISIONS && bumper.deck !== ball.deckLevel) return false;
     const dx = ball.x - bumper.x;
     const dy = ball.y - bumper.y;
     const hitRadius = ball.radius + bumper.radius;
@@ -3042,7 +3292,9 @@
     flipper.pressed = pressed;
     flipper.previousAngle = flipper.angle;
     const target = pressed ? flipper.activeAngle : flipper.restAngle;
-    const travelSpeed = pressed ? 32 : 16;
+    const travelSpeed = pressed
+      ? PHYSICS_TUNING.flipperRiseSpeed
+      : PHYSICS_TUNING.flipperFallSpeed;
     flipper.angle = approach(flipper.angle, target, travelSpeed * dt);
     flipper.angularVelocity = (flipper.angle - flipper.previousAngle) / dt;
     flipper.flash = Math.max(0, flipper.flash - dt * 5);
@@ -3160,10 +3412,11 @@
   function fitCanvas() {
     const rect = canvas.getBoundingClientRect();
     cssScale = Math.min(rect.width / DESIGN_W, rect.height / DESIGN_H) || 1;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(DESIGN_W * dpr);
-    canvas.height = Math.round(DESIGN_H * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    backingDpr = Math.min(window.devicePixelRatio || 1, RENDER_TUNING.maxBackingDpr);
+    canvas.width = Math.round(DESIGN_W * backingDpr);
+    canvas.height = Math.round(DESIGN_H * backingDpr);
+    ctx.setTransform(backingDpr, 0, 0, backingDpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
   }
 
   function roundedRect(x, y, w, h, r) {
@@ -4543,14 +4796,22 @@
     return '#9bb4bd';
   }
 
-  function drawBallDeckDepth(inner, ballX, ballY) {
+  function renderedBallPosition() {
+    const alpha = Math.max(0, Math.min(1, accumulator / FIXED_DT));
+    return {
+      x: ball.previousX + (ball.x - ball.previousX) * alpha,
+      y: ball.previousY + (ball.y - ball.previousY) * alpha,
+    };
+  }
+
+  function drawBallDeckDepth(inner, ballX, ballY, physicsX = ball.x, physicsY = ball.y) {
     const color = deckLevelColor(ball.deckLevel);
     const lift = Math.max(0, ball.deckHeight);
     ctx.save();
     ctx.globalAlpha = 0.24 + lift * 0.12;
     ctx.fillStyle = '#02050b';
     ctx.beginPath();
-    ctx.ellipse(inner.x + ball.x + 2, inner.y + ball.y + ball.radius + 2, 4.8 + lift * 1.1, 1.8, 0, 0, Math.PI * 2);
+    ctx.ellipse(inner.x + physicsX + 2, inner.y + physicsY + ball.radius + 2, 4.8 + lift * 1.1, 1.8, 0, 0, Math.PI * 2);
     ctx.fill();
     if (lift > 0 || deckRouting.activeRoute) {
       ctx.globalAlpha = 0.5 + deckRouting.flash * 0.25;
@@ -4559,7 +4820,7 @@
       ctx.shadowBlur = 5 + deckRouting.flash * 4;
       ctx.lineWidth = 0.8;
       ctx.beginPath();
-      ctx.arc(inner.x + ball.x, inner.y + ball.y, ball.radius + 2.4 + lift, 0, Math.PI * 2);
+      ctx.arc(inner.x + physicsX, inner.y + physicsY, ball.radius + 2.4 + lift, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
@@ -4568,7 +4829,7 @@
     }
   }
 
-  function drawTable(t) {
+  function drawLegacyTable(t) {
     const bx = board.x;
     const by = board.y;
     const bw = board.w;
@@ -4788,10 +5049,11 @@
     // Dynamic ball and a short trail, in the same screen coordinates as the
     // mapped colliders above. A small visual lift/shadow communicates the
     // semantic deck level without moving the legacy projected collision point.
+    const renderBall = renderedBallPosition();
     const ballLift = ball.deckHeight * .75;
-    const ballX = inner.x + ball.x;
-    const ballY = inner.y + ball.y - ballLift;
-    drawBallDeckDepth(inner, ballX, ballY);
+    const ballX = inner.x + renderBall.x;
+    const ballY = inner.y + renderBall.y - ballLift;
+    drawBallDeckDepth(inner, ballX, ballY, renderBall.x, renderBall.y);
     for (let i = 0; i < ball.trail.length; i++) {
       const point = ball.trail[i];
       const alpha = (i + 1) / ball.trail.length * 0.20 * point.life;
@@ -4827,6 +5089,198 @@
     ctx.lineWidth = 1.5;
     roundedRect(inner.x + 4, inner.y + 4, inner.w - 8, inner.h - 8, 3);
     ctx.stroke();
+  }
+
+  function drawPortraitShooterLane(inner, t) {
+    const x = plunger.laneX;
+    const top = Math.max(84, plunger.laneTop - 8);
+    const bottom = Math.min(drain.y - 45, 354);
+    const active = plunger.armed && input.plunger;
+    ctx.save();
+    ctx.fillStyle = 'rgba(2, 8, 19, .92)';
+    ctx.strokeStyle = '#315b78';
+    ctx.lineWidth = 1;
+    roundedRect(x - 13, top, 25, bottom - top, 4);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#73cbd2';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(x - 8, top + 5);
+    ctx.lineTo(x - 8, bottom - 18);
+    ctx.stroke();
+    ctx.strokeStyle = '#263d62';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 7, top + 5);
+    ctx.lineTo(x + 7, bottom - 18);
+    ctx.stroke();
+    const handleY = bottom - 9 + (active ? plunger.charge * 7 : 0);
+    ctx.shadowColor = active ? '#ffe58c' : '#50c9d0';
+    ctx.shadowBlur = active ? 10 : 4;
+    ctx.fillStyle = active ? '#f3d36f' : '#4b93a9';
+    roundedRect(x - 9, handleY - 4, 18, 8, 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#d8ece5';
+    ctx.lineWidth = .8;
+    ctx.stroke();
+    ctx.restore();
+    pixelText('PULL', x, bottom + 11, .65, active ? '#ffe58c' : '#77b9c1', 'center');
+    pixelText('LAUNCH', x, top - 9, .48, '#d9bd5b', 'center');
+    if (active) {
+      const pulse = .5 + .5 * Math.sin(t * .01);
+      pixelText(`${Math.round(plunger.charge * 100)}%`, x, bottom + 23, .5,
+        `rgba(255, 229, 140, ${(0.55 + pulse * .35).toFixed(3)})`, 'center');
+    }
+  }
+
+  function drawPortraitCollisionFeedback(inner) {
+    for (const impact of collisionState.impacts) {
+      const ix = inner.x + impact.x;
+      const iy = inner.y + impact.y;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, impact.life);
+      ctx.strokeStyle = '#ffe88c';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(ix - 5, iy);
+      ctx.lineTo(ix + 5, iy);
+      ctx.moveTo(ix, iy - 5);
+      ctx.lineTo(ix, iy + 5);
+      ctx.stroke();
+      ctx.restore();
+    }
+    for (const popup of scoring.popups) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, popup.life);
+      text(`+${popup.points}`, inner.x + popup.x, inner.y + popup.y, 8, '#ffe88c', 'center');
+      ctx.restore();
+    }
+    const contact = collisionState.lastContact;
+    if (!contact || contact.life <= 0) return;
+    const x = inner.x + contact.x;
+    const y = inner.y + contact.y;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, contact.life * 2.4);
+    ctx.strokeStyle = '#fff0a4';
+    ctx.shadowColor = '#f3ca64';
+    ctx.shadowBlur = 7;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, 7 + (0.46 - contact.life) * 8, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    pixelText(contact.label, x, y - 11, .58, '#ffe88c', 'center');
+  }
+
+  function drawPortraitBall(inner) {
+    const renderBall = renderedBallPosition();
+    const ballLift = ball.deckHeight * .75;
+    const ballX = inner.x + renderBall.x;
+    const ballY = inner.y + renderBall.y - ballLift;
+    drawBallDeckDepth(inner, ballX, ballY, renderBall.x, renderBall.y);
+    for (let i = 0; i < ball.trail.length; i += 1) {
+      const point = ball.trail[i];
+      const alpha = (i + 1) / Math.max(1, ball.trail.length) * 0.20 * point.life;
+      ctx.fillStyle = `rgba(190, 239, 255, ${alpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(inner.x + point.x, inner.y + point.y, 1.7 + i * .15, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.save();
+    ctx.shadowColor = '#e4f8ff';
+    ctx.shadowBlur = 8;
+    const ballGradient = ctx.createRadialGradient(ballX - 1.5, ballY - 2, .5, ballX, ballY, ball.radius);
+    ballGradient.addColorStop(0, '#ffffff');
+    ballGradient.addColorStop(.45, '#d7e6e8');
+    ballGradient.addColorStop(1, '#657e88');
+    ctx.fillStyle = ballGradient;
+    ctx.beginPath();
+    ctx.arc(ballX, ballY, ball.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,.86)';
+    ctx.beginPath();
+    ctx.arc(ballX - 1.8, ballY - 2.1, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(25, 61, 75, .55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(ballX + 1.8, ballY + 3.8, 3.8, 1.1, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function buildPortraitStaticLayer() {
+    if (!portraitStaticCtx) return false;
+    const previousCtx = ctx;
+    const inner = { x: board.x + playfield.x, y: board.y + playfield.y, w: playfield.w, h: playfield.h };
+    ctx = portraitStaticCtx;
+    try {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, DESIGN_W, DESIGN_H);
+      const cabinet = ctx.createLinearGradient(inner.x, inner.y, inner.x + inner.w, inner.y + inner.h);
+      cabinet.addColorStop(0, '#0b1a32');
+      cabinet.addColorStop(.46, '#06162b');
+      cabinet.addColorStop(1, '#020817');
+      ctx.fillStyle = cabinet;
+      roundedRect(inner.x, inner.y, inner.w, inner.h, 5);
+      ctx.fill();
+      ctx.strokeStyle = '#0a080f';
+      ctx.lineWidth = 5;
+      ctx.stroke();
+
+      ctx.save();
+      roundedRect(inner.x + 2, inner.y + 2, inner.w - 4, inner.h - 4, 4);
+      ctx.clip();
+      // These passes contain the deck geometry and its static hardware. A
+      // zero-time snapshot is intentional; animated lamps/glow are redrawn
+      // in the inexpensive dynamic pass below.
+      drawDeckLowerPass(inner, 0);
+      drawDeckBridgeShadowPass(inner, 0);
+      drawDeckRaisedPass(inner, 0);
+      drawDeckBridgeTopPass(inner, 0);
+      ctx.restore();
+
+      ctx.strokeStyle = 'rgba(183, 225, 226, .74)';
+      ctx.lineWidth = 1.2;
+      roundedRect(inner.x + deckViewport.x + 2, inner.y + deckViewport.y + 2,
+        deckViewport.w - 4, deckViewport.h - 4, 4);
+      ctx.stroke();
+      ctx.restore();
+      portraitStaticBuilds += 1;
+      portraitStaticReady = true;
+      return true;
+    } finally {
+      ctx = previousCtx;
+    }
+  }
+
+  function drawPortraitTable(t) {
+    const inner = { x: board.x + playfield.x, y: board.y + playfield.y, w: playfield.w, h: playfield.h };
+    if (!portraitStaticReady) buildPortraitStaticLayer();
+    ctx.save();
+    if (portraitStaticReady) ctx.drawImage(portraitStaticLayer, 0, 0);
+    ctx.save();
+    roundedRect(inner.x + 2, inner.y + 2, inner.w - 4, inner.h - 4, 4);
+    ctx.clip();
+    drawDeckAccessRouteGuides(inner, t);
+    drawDeckPaletteAccents(inner, t);
+    drawShooterExitGraphic(inner);
+    drawPortraitShooterLane(inner, t);
+    drawDeckLowerApronFeatures(inner, t);
+    drawTransientFx(inner);
+    drawPortraitCollisionFeedback(inner);
+    drawPortraitBall(inner);
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function drawTable(t) {
+    if (PORTRAIT_DECK_RENDER) return drawPortraitTable(t);
+    return drawLegacyTable(t);
   }
 
   function updateScoring(dt) {
@@ -5020,7 +5474,19 @@
     simulateBall(dt);
     for (const impact of collisionState.impacts) impact.life -= dt * 4.5;
     collisionState.impacts = collisionState.impacts.filter(impact => impact.life > 0);
+    if (collisionState.lastContact) {
+      collisionState.lastContact.life -= dt;
+      if (collisionState.lastContact.life <= 0) collisionState.lastContact = null;
+    }
     if (input.nudgeX !== 0 && simTime >= input.nudgeUntil) input.nudgeX = 0;
+  }
+
+  function scheduleNextFrame() {
+    if (loopTestMode) {
+      window.setTimeout(() => frame(performance.now()), 1000 / 60);
+    } else {
+      requestAnimationFrame(frame);
+    }
   }
 
   function frame(now) {
@@ -5032,13 +5498,22 @@
     lastFrameTime = now;
     accumulator += elapsed;
 
-    while (accumulator >= FIXED_DT) {
+    let steps = 0;
+    while (accumulator >= FIXED_DT && steps < MAX_STEPS_PER_FRAME) {
       updateSimulation(FIXED_DT);
       accumulator -= FIXED_DT;
+      steps += 1;
+    }
+    // Do not spend an entire frame replaying stale physics after a cabinet
+    // hitch. Dropping only the excess backlog keeps controls and rendering
+    // responsive instead of turning one hitch into a visible teleport.
+    if (steps === MAX_STEPS_PER_FRAME && accumulator >= FIXED_DT) {
+      droppedSimulationTime += accumulator;
+      accumulator = 0;
     }
 
     draw(simTime * 1000);
-    requestAnimationFrame(frame);
+    scheduleNextFrame();
   }
 
   window.addEventListener('resize', fitCanvas, { passive: true });
@@ -5123,6 +5598,7 @@
   window.spaceCadetPhysics = ballPhysics;
   window.spaceCadetTuning = PHYSICS_TUNING;
   window.spaceCadetWalls = walls;
+  window.spaceCadetPortraitBounds = portraitBounds;
   window.spaceCadetCollisionState = collisionState;
   window.spaceCadetFlippers = flippers;
   window.spaceCadetPlunger = plunger;
@@ -5143,6 +5619,19 @@
   window.spaceCadetScoring = scoring;
   window.spaceCadetVisualFx = visualFx;
   window.spaceCadetVisualTuning = VISUAL_TUNING;
+  window.spaceCadetRender = {
+    tuning: RENDER_TUNING,
+    get backingDpr() { return backingDpr; },
+    get cssScale() { return cssScale; },
+    get maxStepsPerFrame() { return MAX_STEPS_PER_FRAME; },
+    get droppedSimulationTime() { return droppedSimulationTime; },
+    get frames() { return renderFrames; },
+    get portraitStaticReady() { return portraitStaticReady; },
+    get portraitStaticBuilds() { return portraitStaticBuilds; },
+    get loopScheduler() { return loopTestMode ? 'timer' : 'raf'; },
+    get portraitLegacyFeatureCollisions() { return PORTRAIT_LEGACY_FEATURE_COLLISIONS; },
+    get ballIntegrationSubsteps() { return BALL_INTEGRATION_SUBSTEPS; },
+  };
   window.spaceCadetRules = rules;
   window.spaceCadetMission = mission;
   window.spaceCadetUi = { input, statusNode };
@@ -5176,5 +5665,5 @@
   }
 
   fitCanvas();
-  if (!testMode) requestAnimationFrame(frame);
+  if (!testMode) scheduleNextFrame();
 })();
