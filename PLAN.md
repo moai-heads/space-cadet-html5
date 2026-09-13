@@ -210,12 +210,13 @@ also drift apart.
   device scale 1×/2× and under CPU throttling; confirm the 2× render path can
   fall below 30 FPS and document the finite collision loops. No JavaScript
   infinite loop was found.
-- [ ] **10.2 Render budget (≤4 min):** cap the backing surface to a deliberate
-  retro-friendly scale, request a low-latency 2D context, and add a real
-  animation-loop smoke check.
-- [ ] **10.3 Input/animation response (≤4 min):** shorten flipper travel,
-  preserve synchronous input state, and interpolate ball presentation between
-  fixed simulation ticks.
+- [x] **10.2 Render budget (≤4 min):** capped the backing surface at the
+  deliberate 1× retro resolution, requested a desynchronized 2D context, and
+  verified forced-DPR 1×/2× runs at roughly 60 FPS locally.
+- [x] **10.3 Input/animation response (≤4 min):** moved lazy audio setup behind
+  the flipper input edge, increased the rise/fall response, interpolated ball
+  presentation between fixed ticks, and bounded per-frame physics catch-up.
+  Commit `53a54ab`.
 - [ ] **10.4 Collision stability (≤4 min):** reduce accidental route capture,
   add bounded catch-up, and prevent transport entry/exit from visibly snapping
   through geometry.
