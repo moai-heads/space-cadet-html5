@@ -174,3 +174,22 @@ existing Space Cadet tests.
 - Keep this plan current after each stage or meaningful scope change.
 - Keep generated screenshots, archives, and downloaded references out of Git.
 - Keep the recreation independent: no Microsoft binaries, original sprites, or original audio files.
+
+## Stage 9 — GitHub Pages deployment
+
+The finished game is being published as a static GitHub Pages site at
+`https://moai-heads.github.io/space-cadet-html5/`. Because the available GitHub
+credential cannot modify Actions workflow files, this deployment uses the
+standard `gh-pages` branch source instead of a workflow. The published branch
+contains only the static game entry point and runtime.
+
+- [x] **9.1 Hosting plan (≤4 min):** choose the repository Pages site, reserve
+  the public URL, and document the branch-based static deployment path.
+- [ ] **9.2 Publish branch (≤4 min):** create/update `gh-pages` with
+  `index.html`, `app.js`, and a small deployment marker, then push it.
+- [ ] **9.3 Enable Pages (≤4 min):** configure the repository Pages source to
+  `gh-pages` at `/` and wait for the first build.
+- [ ] **9.4 Public smoke check (≤4 min):** verify the deployed HTML and
+  JavaScript over HTTPS and launch the game in Chromium.
+- [ ] **9.5 Delivery note (≤4 min):** record the live URL, deployment result,
+  and verification commit in `README.md` and this plan.
